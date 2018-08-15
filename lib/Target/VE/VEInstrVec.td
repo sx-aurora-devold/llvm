@@ -1051,23 +1051,6 @@ def NEGMp : PseudoVec<(outs VM512:$vmx), (ins VM512:$vmy), "", []>;
 let cx = 0, sx = 0, cy = 0, cz = 0, sz = 0, Defs = [VL] in
 def LVL : RR<0xBF, (outs), (ins I32:$sy), "lvl $sy", []>;
 
-// Pattern Matchings for Vector Instructions
-
-def : Pat<(v256f64 (load ADDRri:$addr)), 
-          (v256f64 (VLDir 8, (LEAasx ADDRri:$addr)))>;
-
-def : Pat<(v512f32 (load ADDRri:$addr)), 
-          (v512f32 (VLDir 8, (LEAasx ADDRri:$addr)))>;
-
-def : Pat<(store v256f64:$vx, ADDRri:$addr), 
-          (VSTir v256f64:$vx, 8, (LEAasx ADDRri:$addr))>;
-
-def : Pat<(store v512f32:$vx, ADDRri:$addr), 
-          (VSTir v512f32:$vx, 8, (LEAasx ADDRri:$addr))>;
-
-def : Pat<(fadd v256f64:$vy, v256f64:$vz), (VFADdv v256f64:$vy, v256f64:$vz)>;
-def : Pat<(fadd v512f32:$vy, v512f32:$vz), (VFADpv v512f32:$vy, v512f32:$vz)>;
-
 // Pattern Matchings for Vector Intrinsics
 
 def : Pat<(int_ve_lvl i32:$sy), (LVL i32:$sy)>;
@@ -1084,6 +1067,9 @@ def : Pat<(i64 (int_ve_pack_f32a ADDRri:$addr)),
             (LEASLrzi (ANDrm0 (LEAzzi (LO32 (i64 0x0000000100000001))), 32),
                       (HI32 (i64 0x0000000100000001)))))>;
 
-
+// intrinsic patterns
 include "VEInstrIntrinsic.td"
+
+// generic instruction patterns
+include "VEInstrPatternsVector.td"
 

@@ -58,7 +58,10 @@ namespace llvm {
 
       TLS_ADD,     // For Thread Local Storage (TLS).
       TLS_LD,
-      TLS_CALL
+      TLS_CALL,
+
+      VEC_BROADCAST,   // a scalar value is broadcast across all vector lanes (Operand 0: the broadcast register)
+      VEC_SEQ          // sequence vector match (Operand 0: the constant stride)
     };
   }
 
@@ -67,7 +70,7 @@ namespace llvm {
   public:
     VETargetLowering(const TargetMachine &TM, const VESubtarget &STI);
     SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
-    
+
     /// computeKnownBitsForTargetNode - Determine which of the bits specified
     /// in Mask are known to be either zero or one and return them in the
     /// KnownZero/KnownOne bitsets.
@@ -166,6 +169,7 @@ namespace llvm {
     SDValue LowerGlobalTLSAddress(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerConstantPool(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerBlockAddress(SDValue Op, SelectionDAG &DAG) const;
+    SDValue LowerBuildVector(SDValue Op, SelectionDAG &DAG) const;
 
     SDValue LowerEH_SJLJ_SETJMP(SDValue Op, SelectionDAG &DAG,
                                 const VETargetLowering &TLI) const ;

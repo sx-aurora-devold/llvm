@@ -46,6 +46,8 @@ public:
   // Complex Pattern Selectors.
   bool SelectADDRrr(SDValue N, SDValue &R1, SDValue &R2);
   bool SelectADDRri(SDValue N, SDValue &Base, SDValue &Offset);
+  // template<int Stride>
+  // bool SelectStridedConst(SDValue N) const;
 
   /// SelectInlineAsmMemoryOperand - Implement addressing mode selection for
   /// inline asm expressions.
@@ -65,6 +67,30 @@ private:
   bool tryInlineAsm(SDNode *N);
 };
 }  // end anonymous namespace
+
+// template<int Stride>
+// bool
+// VEDAGToDAGISel::SelectStridedConst(SDValue N) const {
+//   BuildVectorSDNode *Node = dyn_cast<BuildVectorSDNode>(N);
+//
+//   if (!Node)
+//     return false;
+//
+//   APInt SplatValue, SplatUndef;
+//   unsigned SplatBitSize;
+//   bool HasAnyUndefs;
+//
+//   // FIXME identify strides
+//
+//   unsigned MinSizeInBits;
+//   if (!Node->isConstantSplat(SplatValue, SplatUndef, SplatBitSize, HasAnyUndefs,
+//                              MinSizeInBits, false))
+//     return false;
+//
+//   Imm = SplatValue;
+//
+//   return true;
+// }
 
 SDNode* VEDAGToDAGISel::getGlobalBaseReg() {
   unsigned GlobalBaseReg = Subtarget->getInstrInfo()->getGlobalBaseReg(MF);

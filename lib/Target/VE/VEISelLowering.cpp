@@ -42,6 +42,77 @@ using namespace llvm;
 #include "VEGenCallingConv.inc"
 
 SDValue
+VETargetLowering::LowerBuildVector(SDValue Chain, SelectionDAG &DAG) const {
+  auto & bvNode = *cast<BuildVectorSDNode>(Chain);
+
+  SDLoc DL(Chain);
+
+// VEC_BROADCAST
+  bool isBroadcast = true;
+  for (unsigned i = 1; i < bvNode.getNumOperands(); ++i) {
+    if (bvNode.getOperand(0) != bvNode.getOperand(i)) {
+      isBroadcast = false;
+      break;
+    }
+  }
+
+  if (isBroadcast) {
+    return DAG.getNode(VEISD::VEC_BROADCAST, DL, Chain.getSimpleValueType(),
+                                  bvNode.getOperand(0));
+  }
+
+
+
+
+// VEC_SEQ(stride) patterns
+  if (!bvNode.isConstant()) {
+    return Chain; // FIXME actually we want to Expand in this case
+  }
+
+  // identify a constant stride vector
+  bool hasConstantStride = true;
+  int64_t stride = 0;
+  int64_t lastElemValue = 0;
+  MVT elemTy;
+
+  for (unsigned i = 0; i < bvNode.getNumOperands(); ++i) {
+    // is this an immediate constant value?
+    auto * constNumElem = dyn_cast<ConstantSDNode>(bvNode.getOperand(i));
+    if (!constNumElem) {
+      hasConstantStride = false;
+      break;
+    }
+
+    // read value
+    int64_t elemValue = constNumElem->getSExtValue();
+    elemTy = constNumElem->getSimpleValueType(0);
+
+    if (i == 1) {
+      // first stride
+      stride = elemValue - lastElemValue;
+    } else if (i > 2) {
+      // later stride
+      int64_t thisStride = elemValue - lastElemValue;
+      if (thisStride != stride) {
+        hasConstantStride = false;
+        break;
+      }
+    }
+
+    // track last elem value
+    lastElemValue = elemValue;
+  }
+
+  // detected a proper stride pattern
+  if (hasConstantStride) {
+    return DAG.getNode(VEISD::VEC_SEQ, DL, Chain.getSimpleValueType(),
+                                  DAG.getConstant(stride, DL, elemTy)); // TODO draw strideTy from elements
+  }
+
+  return Chain;
+}
+
+SDValue
 VETargetLowering::LowerReturn(SDValue Chain, CallingConv::ID CallConv,
                               bool IsVarArg,
                               const SmallVectorImpl<ISD::OutputArg> &Outs,
@@ -1210,6 +1281,11 @@ VETargetLowering::VETargetLowering(const TargetMachine &TM,
   setTruncStoreAction(MVT::f128, MVT::f32, Expand);
   setTruncStoreAction(MVT::f128, MVT::f64, Expand);
 
+  // custom splat handling
+  for (MVT VT : MVT::vector_valuetypes()) {
+    setOperationAction(ISD::BUILD_VECTOR, VT, Custom);
+  }
+
   // Custom legalize GlobalAddress nodes into LO/HI parts.
   setOperationAction(ISD::GlobalAddress, PtrVT, Custom);
   setOperationAction(ISD::GlobalTLSAddress, PtrVT, Custom);
@@ -1385,15 +1461,18 @@ VETargetLowering::VETargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::DYNAMIC_STACKALLOC, MVT::i32, Expand);
   setOperationAction(ISD::DYNAMIC_STACKALLOC, MVT::i64, Expand);
 
-  // VE has no load/store for f128, but llvm doesn't expand them
-  // automatically, so we need to use Custom here.
-  setOperationAction(ISD::LOAD, MVT::f128, Custom);
-  setOperationAction(ISD::STORE, MVT::f128, Custom);
-
+#if 0
+  // VE natively supports vector loads
   for (MVT VT : MVT::vector_valuetypes()) {
     setOperationAction(ISD::LOAD,  VT, Expand);
     setOperationAction(ISD::STORE, VT, Expand);
   }
+
+  // VE has no load/store for f128, but llvm doesn't expand them
+  // automatically, so we need to use Custom here.
+  setOperationAction(ISD::LOAD, MVT::f128, Custom);
+  setOperationAction(ISD::STORE, MVT::f128, Custom);
+#endif
 
   // VE has FAQ, FSQ, FMQ, and FCQ
   setOperationAction(ISD::FADD,  MVT::f128, Legal);
@@ -1462,6 +1541,8 @@ const char *VETargetLowering::getTargetNodeName(unsigned Opcode) const {
   case VEISD::TLS_ADD:         return "VEISD::TLS_ADD";
   case VEISD::TLS_LD:          return "VEISD::TLS_LD";
   case VEISD::TLS_CALL:        return "VEISD::TLS_CALL";
+  case VEISD::VEC_BROADCAST:   return "VEISD::VEC_BROADCAST";
+  case VEISD::VEC_SEQ:         return "VEISD::VEC_SEQ";
   }
   return nullptr;
 }
@@ -2368,6 +2449,7 @@ LowerOperation(SDValue Op, SelectionDAG &DAG) const {
     report_fatal_error("ATOMIC_LOAD or ATOMIC_STORE expansion is not implemented yet");
   case ISD::INTRINSIC_WO_CHAIN: return LowerINTRINSIC_WO_CHAIN(Op, DAG);
     //report_fatal_error("INTRINSIC_WO_CHAIN expansion is not implemented yet");
+  case ISD::BUILD_VECTOR:      return LowerBuildVector(Op, DAG);
   }
 }
 
