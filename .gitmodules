@@ -1,0 +1,4 @@
+[submodule "tools/rv"]
+	path = tools/rv
+	url = https://github.com/cdl-saarland/rv.git
+	branch = necllvm
