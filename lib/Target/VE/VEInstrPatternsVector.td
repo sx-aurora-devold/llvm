@@ -31,24 +31,36 @@ def vec_broadcast   : SDNode<"VEISD::VEC_BROADCAST", SDTypeProfile<1, 1, [SDTCis
 
 
 // Broadcast
-// TODO actually all lanes > 0 are undef
-def : Pat<(v256f64 (scalar_to_vector f64:$sy)),
-          (VBRDf64r f64:$sy)>;
+def : Pat<(v256f64 (scalar_to_vector f64:$sy)), (VBRDf64r f64:$sy)>;
 
+def : Pat<(v256i64 (vec_broadcast i64:$sy)), (VBRDr i64:$sy)>;
 def : Pat<(v256f64 (vec_broadcast f64:$sy)), (VBRDf64r f64:$sy)>;
-def : Pat<(v256i32 (vec_broadcast i32:$sy)), (VBRDi32r i32:$sy)>; // ???
+def : Pat<(v256i32 (vec_broadcast i32:$sy)), (VBRDi32r i32:$sy)>; 
+def : Pat<(v256f32 (vec_broadcast f32:$sy)), (VBRDf32r f32:$sy)>;
+// def : Pat<(v512f32 (vec_broadcast f32:$sy)), (VBRDpr f32:$sy)>; 
+def : Pat<(v512i32 (vec_broadcast i64:$sy)), (VBRDpr i64:$sy)>; 
 
-def : Pat<(v256f64 (build_vector f64:$sy)),
-          (VBRDf64r f64:$sy)>;
+// Condition Code
+def : Pat<(setcc v256i64:$vx, v256i64:$vy, CCSIOp:$cond),
+          (v256i1 (VFMKv (icond2cc $cond), (VCMPlv v256i64:$vx, v256i64:$vy)))>;
 
+// (VFMKv (i32 uimm6:$cc), v256f64:$vz)
 
-// Select
+// def : Pat<(i32 (setcc i64:$LHS, i64:$RHS, CCSIOp:$cond)),
+//           (EXTRACT_SUBREG
+//               (CMOVLrm0 )>;
+// 
+// def : Pat<(setcc v256i64:$vx, v256i64:$vy, $cc),
+//           (VFMKv (i32 uimm6:( $cc)), v256f64:$vz)>;
 
-def : Pat<(v256f64 (select v4i64:$m, v256f64:$vy, v256f64:$vz)),
-          (VMRGvm v256f64:$vz, v256f64:$vy, v4i64:$m)>;
+// Vector Select
 
-def : Pat<(v512f32 (select v8i64:$m, v512f32:$vy, v512f32:$vz)),
-          (VMRGpvm v512f32:$vz, v512f32:$vy, v8i64:$m)>;
+// FIXME broken! (TODO legalize in custom lowering)
+// def : Pat<(v256f64 (vselect v256i64:$m, v256f64:$vy, v256f64:$vz)), (VMRGvm v256f64:$vz, v256f64:$vy, (v4i64 $m))>;
+def : Pat<(v256f64 (vselect v256i1:$m, v256f64:$vy, v256f64:$vz)), 
+          (v256f64 (VMRGvm v256f64:$vz, v256f64:$vy, v256i1:$m))>; 
+def : Pat<(v512f32 (vselect v512i1:$m, v512f32:$vy, v512f32:$vz)),
+          (VMRGpvm v512f32:$vz, v512f32:$vy, v512i1:$m)>;
 
 // Sequence
 
@@ -102,3 +114,13 @@ def : Pat<(fdiv (v512f32 (vec_broadcast i64:$sy)), v512f32:$vz), (VFDVpr i64:$sy
 def : Pat<(add v512i32:$vx, v512i32:$vy), (VADDpv v512i32:$vx, v512i32:$vy)>;
 def : Pat<(add v256i32:$vx, v256i32:$vy), (VADDlv v256i32:$vx, v256i32:$vy)>;
 def : Pat<(add v256i64:$vx, v256i64:$vy), (VADXlv v256i64:$vx, v256i64:$vy)>;
+
+def : Pat<(add v512i32:$vx, v512i32:$vy), (VADDpv v512i32:$vx, v512i32:$vy)>;
+def : Pat<(add v256i32:$vx, v256i32:$vy), (VADDlv v256i32:$vx, v256i32:$vy)>;
+def : Pat<(add v256i64:$vx, v256i64:$vy), (VADXlv v256i64:$vx, v256i64:$vy)>;
+
+def : Pat<(add v512i32:$vx, v512i32:$vy), (VADDpv v512i32:$vx, v512i32:$vy)>;
+def : Pat<(add v256i32:$vx, v256i32:$vy), (VADDlv v256i32:$vx, v256i32:$vy)>;
+def : Pat<(add v256i64:$vx, v256i64:$vy), (VADXlv v256i64:$vx, v256i64:$vy)>;
+
+
