@@ -48,9 +48,24 @@ VETargetLowering::LowerBuildVector(SDValue Chain, SelectionDAG &DAG) const {
   SDLoc DL(Chain);
 
 // VEC_BROADCAST
+  bool allUndef = true;
+  unsigned first_def = -1;
+  for (unsigned i = 0; i < bvNode.getNumOperands(); ++i) {
+    if (!bvNode.getOperand(i).isUndef()) {
+      allUndef = false;
+      first_def = i;
+      break;
+    }
+  }
+
+  if (allUndef) {
+    return DAG.getNode(VEISD::VEC_BROADCAST, DL, Chain.getSimpleValueType(),
+                                  bvNode.getOperand(0));
+  }
+
   bool isBroadcast = true;
-  for (unsigned i = 1; i < bvNode.getNumOperands(); ++i) {
-    if (bvNode.getOperand(0) != bvNode.getOperand(i)) {
+  for (unsigned i = first_def + 1; i < bvNode.getNumOperands(); ++i) {
+    if (bvNode.getOperand(first_def) != bvNode.getOperand(i) && !bvNode.getOperand(i).isUndef()) {
       isBroadcast = false;
       break;
     }
@@ -58,24 +73,28 @@ VETargetLowering::LowerBuildVector(SDValue Chain, SelectionDAG &DAG) const {
 
   if (isBroadcast) {
     return DAG.getNode(VEISD::VEC_BROADCAST, DL, Chain.getSimpleValueType(),
-                                  bvNode.getOperand(0));
+                                  bvNode.getOperand(first_def));
   }
-
-
 
 
 // VEC_SEQ(stride) patterns
-  if (!bvNode.isConstant()) {
+  /*if (!bvNode.isConstant()) {
     return Chain; // FIXME actually we want to Expand in this case
-  }
+  }*/
 
   // identify a constant stride vector
   bool hasConstantStride = true;
+  bool firstStride = true;
   int64_t stride = 0;
   int64_t lastElemValue = 0;
   MVT elemTy;
 
   for (unsigned i = 0; i < bvNode.getNumOperands(); ++i) {
+    if (bvNode.getOperand(i).isUndef()) {
+      lastElemValue += stride;
+      continue;
+    }
+
     // is this an immediate constant value?
     auto * constNumElem = dyn_cast<ConstantSDNode>(bvNode.getOperand(i));
     if (!constNumElem) {
@@ -87,10 +106,11 @@ VETargetLowering::LowerBuildVector(SDValue Chain, SelectionDAG &DAG) const {
     int64_t elemValue = constNumElem->getSExtValue();
     elemTy = constNumElem->getSimpleValueType(0);
 
-    if (i == 1) {
+    if (i > first_def && firstStride) {
       // first stride
-      stride = elemValue - lastElemValue;
-    } else if (i > 2) {
+      stride = (elemValue - lastElemValue) / (i - first_def);
+      firstStride = false;
+    } else if (i > first_def) {
       // later stride
       int64_t thisStride = elemValue - lastElemValue;
       if (thisStride != stride) {

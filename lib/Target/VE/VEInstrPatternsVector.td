@@ -29,6 +29,11 @@ def vec_broadcast   : SDNode<"VEISD::VEC_BROADCAST", SDTypeProfile<1, 1, [SDTCis
 // Shuffle
 // TODO
 
+def : Pat<(f64 (extractelt v256f64:$vx, i64:$index)),
+          (f64 (LVSf64r $vx, (EXTRACT_SUBREG $index, sub_i32)))>;
+
+def : Pat<(insertelt v256f64:$vx, f64:$sx, i64:$index),
+          (LSVr v256f64:$vx, (EXTRACT_SUBREG $index, sub_i32), $sx)>;
 
 // Broadcast
 def : Pat<(v256f64 (scalar_to_vector f64:$sy)), (VBRDf64r f64:$sy)>;
