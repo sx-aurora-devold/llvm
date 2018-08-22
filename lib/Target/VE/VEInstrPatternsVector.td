@@ -98,16 +98,12 @@ def : Pat<(fmul v256f64:$vy, v256f64:$vz), (VFMPdv v256f64:$vy, v256f64:$vz)>;
 def : Pat<(fdiv (v256f64 (vec_broadcast f64:$sy)), v256f64:$vz), (VFDVdr f64:$sy, v256f64:$vz)>; 
 def : Pat<(fdiv v256f64:$vy, v256f64:$vz), (VFDVdv v256f64:$vy, v256f64:$vz)>;
 
-def : Pat<(fadd (v256f64 (vec_broadcast f64:$sy)), (v256f64 (fmul v256f64:$vz, v256f64:$vw))), (VFMADdr f64:$sy, v256f64:$vz, v256f64:$vw)>;
-def : Pat<(fadd v256f64:$vy, (v256f64 (fmul (v256f64 (vec_broadcast f64:$sy)), v256f64:$vw))), (VFMADdr2 v256f64:$vy, f64:$sy, v256f64:$vw)>;
-def : Pat<(fadd v256f64:$vy, (v256f64 (fmul v256f64:$vw, (v256f64 (vec_broadcast f64:$sy))))), (VFMADdr2 v256f64:$vy, f64:$sy, v256f64:$vw)>;
-def : Pat<(fadd v256f64:$vy, (v256f64 (fmul v256f64:$vz, v256f64:$vw))), (VFMADdv v256f64:$vy, v256f64:$vz, v256f64:$vw)>;
+def : Pat<(fma (v256f64 (vec_broadcast f64:$sy)), v256f64:$vw, v256f64:$vy), (VFMADdr2 v256f64:$vy, f64:$sy, v256f64:$vw)>;
+def : Pat<(fma v256f64:$vw, (v256f64 (vec_broadcast f64:$sy)), v256f64:$vy), (VFMADdr2 v256f64:$vy, f64:$sy, v256f64:$vw)>;
+def : Pat<(fma v256f64:$vz, v256f64:$vw, (v256f64 (vec_broadcast f64:$sy))), (VFMADdr f64:$sy, v256f64:$vz, v256f64:$vw)>;
+def : Pat<(fma v256f64:$vz, v256f64:$vw, v256f64:$vy), (VFMADdv v256f64:$vy, v256f64:$vz, v256f64:$vw)>;
 
-def : Pat<(fadd (v256f64 (fmul v256f64:$vz, v256f64:$vw)), (v256f64 (vec_broadcast f64:$sy))), (VFMADdr f64:$sy, v256f64:$vz, v256f64:$vw)>;
-def : Pat<(fadd (v256f64 (fmul (v256f64 (vec_broadcast f64:$sy)), v256f64:$vw)), v256f64:$vy), (VFMADdr2 v256f64:$vy, f64:$sy, v256f64:$vw)>;
-def : Pat<(fadd (v256f64 (fmul v256f64:$vw, (v256f64 (vec_broadcast f64:$sy)))), v256f64:$vy), (VFMADdr2 v256f64:$vy, f64:$sy, v256f64:$vw)>;
-def : Pat<(fadd (v256f64 (fmul v256f64:$vz, v256f64:$vw)), v256f64:$vy), (VFMADdv v256f64:$vy, v256f64:$vz, v256f64:$vw)>;
-
+def : Pat<(fneg v256f64:$vz), (VFSBdr (i64 0), v256f64:$vz)>;
 
 // Packed Single-Precision Arithmetic
 
@@ -123,16 +119,12 @@ def : Pat<(fmul v512f32:$vy, v512f32:$vz), (VFMPpv v512f32:$vy, v512f32:$vz)>;
 def : Pat<(fdiv (v512f32 (vec_broadcast i64:$sy)), v512f32:$vz), (VFDVpr i64:$sy, v512f32:$vz)>; 
 def : Pat<(fdiv v512f32:$vy, v512f32:$vz), (VFDVpv v512f32:$vy, v512f32:$vz)>;
 
-def : Pat<(fadd (v512f32 (vec_broadcast f64:$sy)), (v512f32 (fmul v512f32:$vz, v512f32:$vw))), (VFMADpr f64:$sy, v512f32:$vz, v512f32:$vw)>;
-def : Pat<(fadd v512f32:$vy, (v512f32 (fmul (v512f32 (vec_broadcast f64:$sy)), v512f32:$vw))), (VFMADpr2 v512f32:$vy, f64:$sy, v512f32:$vw)>;
-def : Pat<(fadd v512f32:$vy, (v512f32 (fmul v512f32:$vw, (v512f32 (vec_broadcast f64:$sy))))), (VFMADpr2 v512f32:$vy, f64:$sy, v512f32:$vw)>;
-def : Pat<(fadd v512f32:$vy, (v512f32 (fmul v512f32:$vz, v512f32:$vw))), (VFMADpv v512f32:$vy, v512f32:$vz, v512f32:$vw)>;
+def : Pat<(fma (v256f32 (vec_broadcast i64:$sy)), v256f32:$vw, v256f32:$vy), (VFMADpr2 v256f32:$vy, i64:$sy, v256f32:$vw)>;
+def : Pat<(fma v256f32:$vw, (v256f32 (vec_broadcast i64:$sy)), v256f32:$vy), (VFMADpr2 v256f32:$vy, i64:$sy, v256f32:$vw)>;
+def : Pat<(fma v256f32:$vz, v256f32:$vw, (v256f32 (vec_broadcast i64:$sy))), (VFMADpr i64:$sy, v256f32:$vz, v256f32:$vw)>;
+def : Pat<(fma v256f32:$vz, v256f32:$vw, v256f32:$vy), (VFMADpv v256f32:$vy, v256f32:$vz, v256f32:$vw)>;
 
-def : Pat<(fadd (v512f32 (fmul v512f32:$vz, v512f32:$vw)), (v512f32 (vec_broadcast f64:$sy))), (VFMADpr f64:$sy, v512f32:$vz, v512f32:$vw)>;
-def : Pat<(fadd (v512f32 (fmul (v512f32 (vec_broadcast f64:$sy)), v512f32:$vw)), v512f32:$vy), (VFMADpr2 v512f32:$vy, f64:$sy, v512f32:$vw)>;
-def : Pat<(fadd (v512f32 (fmul v512f32:$vw, (v512f32 (vec_broadcast f64:$sy)))), v512f32:$vy), (VFMADpr2 v512f32:$vy, f64:$sy, v512f32:$vw)>;
-def : Pat<(fadd (v512f32 (fmul v512f32:$vz, v512f32:$vw)), v512f32:$vy), (VFMADpv v512f32:$vy, v512f32:$vz, v512f32:$vw)>;
-
+def : Pat<(fneg v512f32:$vz), (VFSBpr (i64 0), v512f32:$vz)>;
 
 // Integer Arithmetic
 

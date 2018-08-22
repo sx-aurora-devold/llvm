@@ -218,6 +218,9 @@ namespace llvm {
                                         MachineBasicBlock *MBB) const;
     MachineBasicBlock *emitEHSjLjLongJmp(MachineInstr &MI,
                                          MachineBasicBlock *MBB) const;
+
+  private:
+    bool isFMAFasterThanFMulAndFAdd(EVT VT) const override { return true; }
   };
 } // end namespace llvm
 

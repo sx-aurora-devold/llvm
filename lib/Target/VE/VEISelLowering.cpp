@@ -1345,7 +1345,7 @@ VETargetLowering::VETargetLowering(const TargetMachine &TM,
 #endif
 
   setTargetDAGCombine(ISD::FADD);
-  setTargetDAGCombine(ISD::FMA);
+  //setTargetDAGCombine(ISD::FMA);
 
   // ATOMICs.
   // Atomics are supported on VE. 32-bit atomics are also
@@ -1382,6 +1382,7 @@ VETargetLowering::VETargetLowering(const TargetMachine &TM,
   for (MVT VT : MVT::fp_valuetypes()) {
     // VE has no sclar FMA instruction
     setOperationAction(ISD::FMA, VT, Expand);
+    setOperationAction(ISD::FMAD, VT, Expand);
     setOperationAction(ISD::FREM, VT, Expand);
     setOperationAction(ISD::FNEG, VT, Expand);
     setOperationAction(ISD::FABS, VT, Expand);
@@ -1526,7 +1527,8 @@ VETargetLowering::VETargetLowering(const TargetMachine &TM,
 // vector fma // TESTING
   for (MVT VT : MVT::vector_valuetypes()) {
     setOperationAction(ISD::FMA, VT, Legal);
-    setOperationAction(ISD::FMAD, VT, Legal);
+    setOperationAction(ISD::FNEG, VT, Legal);
+    //setOperationAction(ISD::FMAD, VT, Legal);
   }
 
   setStackPointerRegisterToSaveRestore(VE::SX11);
