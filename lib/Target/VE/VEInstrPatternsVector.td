@@ -71,7 +71,7 @@ def : Pat<(v512f32 (vselect v512i1:$m, v512f32:$vy, v512f32:$vz)),
 
 def : Pat<(v256i32 (vec_seq (i32 1))), (VSEQlv)>;
 def : Pat<(v512i32 (vec_seq (i32 1))), (VSEQpv)>;
-def : Pat<(v256i64 (vec_seq (i32 1))), (VSEQv)>;
+def : Pat<(v256i64 (vec_seq (i64 1))), (VSEQv)>;
           
 
 // Format Conversions
@@ -147,3 +147,8 @@ def : Pat<(add v256i64:$vx, v256i64:$vy), (VADXlv v256i64:$vx, v256i64:$vy)>;
 def : Pat<(add v512i32:$vx, v512i32:$vy), (VADDpv v512i32:$vx, v512i32:$vy)>;
 def : Pat<(add v256i32:$vx, v256i32:$vy), (VADDlv v256i32:$vx, v256i32:$vy)>;
 def : Pat<(add v256i64:$vx, v256i64:$vy), (VADXlv v256i64:$vx, v256i64:$vy)>;
+
+// Logic
+def : Pat<(and v256i64:$vx, v256i64:$vy), (VANDv v256i64:$vx, v256i64:$vy)>;
+def : Pat<(or  v256i64:$vx, v256i64:$vy), (VORv v256i64:$vx, v256i64:$vy)>;
+def : Pat<(xor v256i64:$vx, v256i64:$vy), (VXORv v256i64:$vx, v256i64:$vy)>;

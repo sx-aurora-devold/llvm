@@ -1344,6 +1344,9 @@ VETargetLowering::VETargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::EH_SJLJ_LONGJMP, MVT::Other, Custom);
 #endif
 
+  setTargetDAGCombine(ISD::FADD);
+  setTargetDAGCombine(ISD::FMA);
+
   // ATOMICs.
   // Atomics are supported on VE. 32-bit atomics are also
   // supported by some Leon VE variants. Otherwise, atomics
@@ -1519,6 +1522,12 @@ VETargetLowering::VETargetLowering(const TargetMachine &TM,
   // On most systems, DEBUGTRAP and TRAP have no difference. The "Expand"
   // here is to inform DAG Legalizer to replace DEBUGTRAP with TRAP.
   setOperationAction(ISD::DEBUGTRAP, MVT::Other, Expand);
+
+// vector fma // TESTING
+  for (MVT VT : MVT::vector_valuetypes()) {
+    setOperationAction(ISD::FMA, VT, Legal);
+    setOperationAction(ISD::FMAD, VT, Legal);
+  }
 
   setStackPointerRegisterToSaveRestore(VE::SX11);
 
