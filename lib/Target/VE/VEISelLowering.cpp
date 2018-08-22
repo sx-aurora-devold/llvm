@@ -129,7 +129,18 @@ VETargetLowering::LowerBuildVector(SDValue Chain, SelectionDAG &DAG) const {
                                   DAG.getConstant(stride, DL, elemTy)); // TODO draw strideTy from elements
   }
 
-  return Chain;
+  SDValue newVector = DAG.getNode(VEISD::VEC_BROADCAST, DL, Chain.getSimpleValueType(),
+                                  bvNode.getOperand(0));
+
+  for (unsigned i = 0; i < bvNode.getNumOperands(); ++i) {
+    newVector = DAG.getNode(ISD::INSERT_VECTOR_ELT, DL, Chain.getSimpleValueType(),
+        newVector,
+        bvNode.getOperand(i),
+        DAG.getConstant(i, DL, EVT::getIntegerVT(*DAG.getContext(), 64))
+    );
+  }
+
+  return newVector;
 }
 
 SDValue
