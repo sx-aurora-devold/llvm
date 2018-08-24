@@ -98,6 +98,8 @@ def : Pat<(fmul v256f64:$vy, v256f64:$vz), (VFMPdv v256f64:$vy, v256f64:$vz)>;
 def : Pat<(fdiv (v256f64 (vec_broadcast f64:$sy)), v256f64:$vz), (VFDVdr f64:$sy, v256f64:$vz)>; 
 def : Pat<(fdiv v256f64:$vy, v256f64:$vz), (VFDVdv v256f64:$vy, v256f64:$vz)>;
 
+def : Pat<(fma v256f64:$vz, v256f64:$vw, (v256f64 (fneg v256f64:$vy))), (VFMSBdv v256f64:$vy, v256f64:$vz, v256f64:$vw)>;
+
 def : Pat<(fma (v256f64 (vec_broadcast f64:$sy)), v256f64:$vw, v256f64:$vy), (VFMADdr2 v256f64:$vy, f64:$sy, v256f64:$vw)>;
 def : Pat<(fma v256f64:$vw, (v256f64 (vec_broadcast f64:$sy)), v256f64:$vy), (VFMADdr2 v256f64:$vy, f64:$sy, v256f64:$vw)>;
 def : Pat<(fma v256f64:$vz, v256f64:$vw, (v256f64 (vec_broadcast f64:$sy))), (VFMADdr f64:$sy, v256f64:$vz, v256f64:$vw)>;
@@ -118,6 +120,8 @@ def : Pat<(fmul v512f32:$vy, v512f32:$vz), (VFMPpv v512f32:$vy, v512f32:$vz)>;
 
 def : Pat<(fdiv (v512f32 (vec_broadcast i64:$sy)), v512f32:$vz), (VFDVpr i64:$sy, v512f32:$vz)>; 
 def : Pat<(fdiv v512f32:$vy, v512f32:$vz), (VFDVpv v512f32:$vy, v512f32:$vz)>;
+
+def : Pat<(fma v512f32:$vz, v512f32:$vw, (v512f32 (fneg v512f32:$vy))), (VFMSBpv v512f32:$vy, v512f32:$vz, v512f32:$vw)>;
 
 def : Pat<(fma (v256f32 (vec_broadcast i64:$sy)), v256f32:$vw, v256f32:$vy), (VFMADpr2 v256f32:$vy, i64:$sy, v256f32:$vw)>;
 def : Pat<(fma v256f32:$vw, (v256f32 (vec_broadcast i64:$sy)), v256f32:$vy), (VFMADpr2 v256f32:$vy, i64:$sy, v256f32:$vw)>;
