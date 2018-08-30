@@ -239,6 +239,9 @@ class Inst:
         self.prop_ = ["IntrWriteMem"]
         return self
 
+    def hasSideEffects(self):
+        self.prop_ = ["IntrHasSideEffects"]
+
     def prop(self):
         return self.prop_
 
@@ -834,6 +837,7 @@ class InstTable:
                "mcv"  : "v",
                "mcvm" : "vm",
                "Mcv"  : "v",
+               "McvM" : "vm",
                "vvIs" : "i", # VSFA
                "vvIsmv" : "im", # VSFA
                "sm"   : "", # PCMV, etc
@@ -1095,7 +1099,8 @@ T.VSTm(0x93, "VSTL", "vstl")
 T.VSTm(0xD1, "VST2D", "vst2d")
 T.VSTm(0xD2, "VSTU2D", "vstu2d")
 T.VSTm(0xD3, "VSTL2D", "vstl2d")
-T.NoImpl("PFCHV")
+T.add(Inst(0x80, "PFCHVr", "pfchv", "pfchv", [], [SY(T_i64), SZ(T_voidcp)])).noTest().hasSideEffects()
+T.add(Inst(0x80, "PFCHVi", "pfchv", "pfchv", [], [ImmI(T_i64), SZ(T_voidcp)])).noTest().hasSideEffects()
 T.InstX(0x8E, "LSV", "lsv", [[VX(T_u64), VX(T_u64), SY(T_u32), SZ(T_u64)]]).noTest()
 #T.InstX(0x9E, "LVS", "lvs", [[SX(T_u64), VX(T_u64), SY(T_u32)]]).noTest()
 T.LVSm(0x9E)
@@ -1211,9 +1216,11 @@ T.InstX(0x00, "VFMKpat", "pvfmk.at", [[VM512]], None, True).noTest() # Pseudo
 T.InstX(0x00, "VFMKpaf", "pvfmk.af", [[VM512]], None, True).noTest() # Pseudo
 T.VFMKm(0xB4, "VFMS", "vfmk.w")
 T.InstX(0x00, "VFMSp", "pvfmk.w", [[VM512, CCOp, VZ(T_i32)]], None, True).noTest() # Pseudo
+T.InstX(0x00, "VFMSp", "pvfmk.w", [[VMX512, CCOp, VZ(T_i32), VM512]], None, True).noTest() # Pseudo
 T.VFMKm(0xB4, "VFMFd", "vfmk.d")
 T.VFMKm(0xB4, "VFMFs", "vfmk.s")
 T.InstX(0x00, "VFMFp", "pvfmk.s", [[VM512, CCOp, VZ(T_f32)]], None, True).noTest() # Pseudo
+T.InstX(0x00, "VFMFp", "pvfmk.s", [[VMX512, CCOp, VZ(T_f32), VM512]], None, True).noTest() # Pseudo
 
 
 T.Section("5.3.2.13. Vector Recursive Relation Instructions", 32)
@@ -1279,6 +1286,7 @@ T.NoImpl("LVIX")
 T.Section("Others", None)
 T.Dummy("", "unsigned long int _ve_pack_f32p(float const* p0, float const* p1)", "ldu,ldl,or")
 T.Dummy("", "unsigned long int _ve_pack_f32a(float const* p)", "load and mul")
+T.Dummy("", "unsigned long int _ve_pack_i32(int a, int b)", "sll,add,or")
 
 T.InstX(None, None, "vec_expf", [[VX(T_f32), VY(T_f32)]], "{0} = expf({1})", True).noBuiltin()
 T.InstX(None, None, "vec_exp", [[VX(T_f64), VY(T_f64)]], "{0} = exp({1})", True).noBuiltin()

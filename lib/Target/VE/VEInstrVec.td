@@ -566,6 +566,23 @@ def VMVi : RV<0x9C, (outs V64:$vx), (ins simm7Op32:$sy, V64:$vz),
     let vy = 0;
   }
 
+def PFCHVr : RVM0<0x80, (outs), (ins I64:$sy, I64:$sz),
+  "pfchv $sy,$sz", []> {
+    let vc = 0;
+    let cy = 1;
+    let vx = 0;
+    let hasSideEffects = 1;
+  }
+
+def PFCHVi : RVM0<0x80, (outs), (ins simm7Op64:$sy, I64:$sz),
+  "pfchv $sy,$sz", []> {
+    let vc = 0;
+    let cy = 0;
+    let vx = 0;
+    let hasSideEffects = 1;
+  }
+
+
 // 5.3.2.8. Vector Fixed-Point Arithmetic Operation Instructions
 defm VADD : RVUm<"vaddu", 0xC8>;
 defm VADS : RVWm<"vadds", 0xCA>;
@@ -876,11 +893,16 @@ let cx = 1, sy = 0, vy = 0x0, vz = 0, vw = 0, m = 0 in
 def VFMSlaf : RV<0xB5, (outs VM:$vm), (ins), "vfmk.w.af $vm", []>;
 
 // Pseudo for VM512
-def VFMSpv : PseudoVec<(outs VM512:$vm), (ins CCOp:$cf, V64:$vz), 
-                    "# pvfmk.w.${cf} $vm,$vz", []>;
+def VFMSpv : PseudoVec<(outs VM512:$vmx), (ins CCOp:$cf, V64:$vz), 
+                    "# pvfmk.w.${cf} $vmx,$vz", []>;
+def VFMSpvm : PseudoVec<(outs VM512:$vmx), (ins CCOp:$cf, V64:$vz, VM512:$vm), 
+                    "# pvfmk.w.${cf} $vmx,$vz,$vm", []> {
+                    }
 
 def VFMFpv : PseudoVec<(outs VM512:$vm), (ins CCOp:$cf, V64:$vz), 
                     "# pvfmk.w.${cf} $vm,$vz", []>;
+def VFMFpvm : PseudoVec<(outs VM512:$vmx), (ins CCOp:$cf, V64:$vz, VM512:$vm), 
+                    "# pvfmk.w.${cf} $vmx,$vz,$vm", []>;
 
 def VFMKpat : PseudoVec<(outs VM512:$vm), (ins), "# pvfmk.at", []>;
 def VFMKpaf : PseudoVec<(outs VM512:$vm), (ins), "# pvfmk.af", []>;
