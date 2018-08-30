@@ -1282,7 +1282,7 @@ VETargetLowering::VETargetLowering(const TargetMachine &TM,
   addRegisterClass(MVT::i32, &VE::I32RegClass);
   addRegisterClass(MVT::i64, &VE::I64RegClass);
   addRegisterClass(MVT::f32, &VE::F32RegClass);
-  addRegisterClass(MVT::f64, &VE::I64RegClass);
+  //addRegisterClass(MVT::f64, &VE::I64RegClass);
   addRegisterClass(MVT::f128, &VE::F128RegClass);
   addRegisterClass(MVT::v256i32, &VE::V64RegClass);
   addRegisterClass(MVT::v256i64, &VE::V64RegClass);
@@ -1525,12 +1525,12 @@ VETargetLowering::VETargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::LOAD,  VT, Expand);
     setOperationAction(ISD::STORE, VT, Expand);
   }
+#endif
 
   // VE has no load/store for f128, but llvm doesn't expand them
   // automatically, so we need to use Custom here.
   setOperationAction(ISD::LOAD, MVT::f128, Custom);
   setOperationAction(ISD::STORE, MVT::f128, Custom);
-#endif
 
   // VE has FAQ, FSQ, FMQ, and FCQ
   setOperationAction(ISD::FADD,  MVT::f128, Legal);
@@ -2152,7 +2152,7 @@ static SDValue LowerF128Load(SDValue Op, SelectionDAG &DAG)
     alignment = 8;
 
   SDValue Hi64 =
-      DAG.getLoad(MVT::f64, dl, LdNode->getChain(), LdNode->getBasePtr(),
+      DAG.getLoad(MVT::i64, dl, LdNode->getChain(), LdNode->getBasePtr(),
                   LdNode->getPointerInfo(), alignment,
                   LdNode->isVolatile() ? MachineMemOperand::MOVolatile :
                                          MachineMemOperand::MONone);
@@ -2161,7 +2161,7 @@ static SDValue LowerF128Load(SDValue Op, SelectionDAG &DAG)
                               LdNode->getBasePtr(),
                               DAG.getConstant(8, dl, addrVT));
   SDValue Lo64 =
-      DAG.getLoad(MVT::f64, dl, LdNode->getChain(), LoPtr,
+      DAG.getLoad(MVT::i64, dl, LdNode->getChain(), LoPtr,
                   LdNode->getPointerInfo(), alignment,
                   LdNode->isVolatile() ? MachineMemOperand::MOVolatile :
                                          MachineMemOperand::MONone);
@@ -2211,12 +2211,12 @@ static SDValue LowerF128Store(SDValue Op, SelectionDAG &DAG) {
 
   SDNode *Hi64 = DAG.getMachineNode(TargetOpcode::EXTRACT_SUBREG,
                                     dl,
-                                    MVT::f64,
+                                    MVT::i64,
                                     StNode->getValue(),
                                     SubRegEven);
   SDNode *Lo64 = DAG.getMachineNode(TargetOpcode::EXTRACT_SUBREG,
                                     dl,
-                                    MVT::f64,
+                                    MVT::i64,
                                     StNode->getValue(),
                                     SubRegOdd);
 

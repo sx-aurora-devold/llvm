@@ -458,7 +458,6 @@ storeRegToStackSlot(MachineBasicBlock &MBB, MachineBasicBlock::iterator I,
   MachineMemOperand *MMO = MF->getMachineMemOperand(
       MachinePointerInfo::getFixedStack(*MF, FI), MachineMemOperand::MOStore,
       MFI.getObjectSize(FI), MFI.getObjectAlignment(FI));
-
   // On the order of operands here: think "[FrameIdx + 0] = SrcReg".
   if (RC == &VE::I64RegClass)
     BuildMI(MBB, I, DL, get(VE::STSri)).addFrameIndex(FI).addImm(0)
@@ -469,13 +468,12 @@ storeRegToStackSlot(MachineBasicBlock &MBB, MachineBasicBlock::iterator I,
   else if (RC == &VE::F32RegClass)
     BuildMI(MBB, I, DL, get(VE::STUri)).addFrameIndex(FI).addImm(0)
       .addReg(SrcReg, getKillRegState(isKill)).addMemOperand(MMO);
-#if 0
-  else if (SP::F128RegClass.hasSubClassEq(RC))
-    // Use STQFri irrespective of its legality. If STQ is not legal, it will be
-    // lowered into two STDs in eliminateFrameIndex.
-    BuildMI(MBB, I, DL, get(SP::STQFri)).addFrameIndex(FI).addImm(0)
-      .addReg(SrcReg,  getKillRegState(isKill)).addMemOperand(MMO);
-#endif
+  else if (VE::F128RegClass.hasSubClassEq(RC)) {
+    BuildMI(MBB, I, DL, get(VE::STSri)).addFrameIndex(FI).addImm(8)
+      .addReg(2 * SrcReg, getKillRegState(isKill)).addMemOperand(MMO);
+    BuildMI(MBB, I, DL, get(VE::STSri)).addFrameIndex(FI).addImm(0)
+      .addReg(2 * SrcReg + 1, getKillRegState(isKill)).addMemOperand(MMO);
+  }
   else
     llvm_unreachable("Can't store this register to stack slot");
 }
@@ -497,19 +495,21 @@ loadRegFromStackSlot(MachineBasicBlock &MBB, MachineBasicBlock::iterator I,
   if (RC == &VE::I64RegClass)
     BuildMI(MBB, I, DL, get(VE::LDSri), DestReg).addFrameIndex(FI).addImm(0)
       .addMemOperand(MMO);
+
   else if (RC == &VE::I32RegClass)
     BuildMI(MBB, I, DL, get(VE::LDLri), DestReg).addFrameIndex(FI).addImm(0)
       .addMemOperand(MMO);
+
   else if (RC == &VE::F32RegClass)
     BuildMI(MBB, I, DL, get(VE::LDUri), DestReg).addFrameIndex(FI).addImm(0)
       .addMemOperand(MMO);
-#if 0
-  else if (VE::F128RegClass.hasSubClassEq(RC))
-    // Use LDQFri irrespective of its legality. If LDQ is not legal, it will be
-    // lowered into two LDDs in eliminateFrameIndex.
-    BuildMI(MBB, I, DL, get(SP::LDQFri), DestReg).addFrameIndex(FI).addImm(0)
+
+  else if (VE::F128RegClass.hasSubClassEq(RC)) {
+    BuildMI(MBB, I, DL, get(VE::LDSri), 2 * DestReg).addFrameIndex(FI).addImm(8)
       .addMemOperand(MMO);
-#endif
+    BuildMI(MBB, I, DL, get(VE::LDSri), 2 * DestReg + 1).addFrameIndex(FI).addImm(0)
+      .addMemOperand(MMO);
+  }
   else
     llvm_unreachable("Can't load this register from stack slot");
 }
