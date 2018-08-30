@@ -1367,19 +1367,40 @@ VETargetLowering::VETargetLowering(const TargetMachine &TM,
   setMinCmpXchgSizeInBits(32);
 
   // FIXME: VE's atomic instructions are not investivated yet.
-  setOperationAction(ISD::ATOMIC_SWAP, MVT::i32, Legal);
-
   setOperationAction(ISD::ATOMIC_FENCE, MVT::Other, Legal);
 
-  // Custom Lower Atomic LOAD/STORE
-  setOperationAction(ISD::ATOMIC_LOAD, MVT::i32, Custom);
-  setOperationAction(ISD::ATOMIC_STORE, MVT::i32, Custom);
+  setOperationAction(ISD::ATOMIC_CMP_SWAP, MVT::i32, Expand);
+  setOperationAction(ISD::ATOMIC_LOAD_ADD, MVT::i32, Expand);
+  setOperationAction(ISD::ATOMIC_SWAP, MVT::i32, Expand);
+  setOperationAction(ISD::ATOMIC_LOAD_SUB, MVT::i32, Expand);
+  setOperationAction(ISD::ATOMIC_LOAD_AND, MVT::i32, Expand);
+  setOperationAction(ISD::ATOMIC_LOAD_CLR, MVT::i32, Expand);
+  setOperationAction(ISD::ATOMIC_LOAD_OR, MVT::i32, Expand);
+  setOperationAction(ISD::ATOMIC_LOAD_XOR, MVT::i32, Expand);
+  setOperationAction(ISD::ATOMIC_LOAD_NAND, MVT::i32, Expand);
+  setOperationAction(ISD::ATOMIC_LOAD_MIN, MVT::i32, Expand);
+  setOperationAction(ISD::ATOMIC_LOAD_MAX, MVT::i32, Expand);
+  setOperationAction(ISD::ATOMIC_LOAD_UMIN, MVT::i32, Expand);
+  setOperationAction(ISD::ATOMIC_LOAD_UMAX, MVT::i32, Expand);
+  setOperationAction(ISD::ATOMIC_LOAD, MVT::i32, Expand);
+  setOperationAction(ISD::ATOMIC_STORE, MVT::i32, Expand);
 
   if (1) {
-    setOperationAction(ISD::ATOMIC_CMP_SWAP, MVT::i64, Legal);
-    setOperationAction(ISD::ATOMIC_SWAP, MVT::i64, Legal);
-    setOperationAction(ISD::ATOMIC_LOAD, MVT::i64, Custom);
-    setOperationAction(ISD::ATOMIC_STORE, MVT::i64, Custom);
+    setOperationAction(ISD::ATOMIC_CMP_SWAP, MVT::i64, Expand);
+    setOperationAction(ISD::ATOMIC_LOAD_ADD, MVT::i64, Expand);
+    setOperationAction(ISD::ATOMIC_SWAP, MVT::i64, Expand);
+    setOperationAction(ISD::ATOMIC_LOAD_SUB, MVT::i64, Expand);
+    setOperationAction(ISD::ATOMIC_LOAD_AND, MVT::i64, Expand);
+    setOperationAction(ISD::ATOMIC_LOAD_CLR, MVT::i64, Expand);
+    setOperationAction(ISD::ATOMIC_LOAD_OR, MVT::i64, Expand);
+    setOperationAction(ISD::ATOMIC_LOAD_XOR, MVT::i64, Expand);
+    setOperationAction(ISD::ATOMIC_LOAD_NAND, MVT::i64, Expand);
+    setOperationAction(ISD::ATOMIC_LOAD_MIN, MVT::i64, Expand);
+    setOperationAction(ISD::ATOMIC_LOAD_MAX, MVT::i64, Expand);
+    setOperationAction(ISD::ATOMIC_LOAD_UMIN, MVT::i64, Expand);
+    setOperationAction(ISD::ATOMIC_LOAD_UMAX, MVT::i64, Expand);
+    setOperationAction(ISD::ATOMIC_LOAD, MVT::i64, Expand);
+    setOperationAction(ISD::ATOMIC_STORE, MVT::i64, Expand);
   }
 
   // FIXME: VE's I128 stuff is not investivated yet
