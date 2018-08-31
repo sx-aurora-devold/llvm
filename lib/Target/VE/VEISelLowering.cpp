@@ -1483,8 +1483,8 @@ VETargetLowering::VETargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::MULHU,     MVT::i64, Expand);
     setOperationAction(ISD::MULHS,     MVT::i64, Expand);
 
-    setOperationAction(ISD::UMULO,     MVT::i64, Custom);
-    setOperationAction(ISD::SMULO,     MVT::i64, Custom);
+    setOperationAction(ISD::UMULO,     MVT::i64, Expand);
+    setOperationAction(ISD::SMULO,     MVT::i64, Expand);
   }
 
   // Bits operations
