@@ -1245,18 +1245,18 @@ def MONCT : RR<
     "monc.hdb",
     []>;
 
+let cx = 1, sx = 0, cy = 0, sy = 0, cz = 0, sz = 0 in
+def CTRL_FENCE : RR<
+    0x20, (outs), (ins),
+    "fencei",
+    []>;
+
 //CX = AVO; SX = X LF SF; SY = C2 C1 C0;
-let cx = 1, sx = 3, cy = 0, sy = 0, cz = 0, sz = 0 in
+let cx = 0, sx = 3, cy = 0, sy = 0, cz = 0, sz = 0 in
 def MEM_FENCE : RR<
     0x20, (outs), (ins),
-    "fence",
+    "fencem %sx",
     [(atomic_fence (imm), (imm))]>;
-
-let cx = 0, sx = 0, cy = 0, sy = 0, cz = 0, sz = 0 in
-def FENCE : RR<
-    0x20, (outs), (ins),
-    "fence",
-    []>;
 
 //def : Pat<(atomic_fence (imm), (imm)), (MEM_FENCE)>;
 
