@@ -77,9 +77,14 @@ foreach I = 0-3 in
 foreach I = 0-14 in
   def PMC#I : VEMiscReg<!add(16,I), "PMC"#I>;
 
-// Generic integer registers - 8 bits wide
+// Generic integer registers - 1 bit wide
 foreach I = 0-63 in
-  def SB#I : R<I, "S"#I>, DwarfRegNum<[I]>;
+  def SI#I : R<I, "S"#I>, DwarfRegNum<[I]>;
+
+// Generic integer registers - 8 bits wide
+let SubRegIndices = [sub_i1] in
+foreach I = 0-63 in
+  def SB#I : R<I, "S"#I, [!cast<R>("SI"#I)]>, DwarfRegNum<[I]>;
 
 // Generic integer registers - 16 bits wide
 let SubRegIndices = [sub_i8] in
@@ -139,6 +144,9 @@ foreach I = 0-31 in
 //
 // The register order is defined in terms of the preferred
 // allocation order.
+def I1  : RegisterClass<"VE", [i1], 8,
+                        (add (sequence "SI%u", 34, 63),
+                             (sequence "SI%u", 0, 33))>;
 def I8  : RegisterClass<"VE", [i8], 8,
                         (add (sequence "SB%u", 34, 63),
                              (sequence "SB%u", 0, 33))>;
