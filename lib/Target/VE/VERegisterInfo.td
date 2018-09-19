@@ -24,6 +24,7 @@ class VEMiscReg<bits<5> Enc, string n>: Register<n> {
 }
 
 let Namespace = "VE" in {
+  def sub_i1      : SubRegIndex<1, 63>;         // Lowest bit (63)
   def sub_i8      : SubRegIndex<8, 56>;         // Low 8 bit (56..63)
   def sub_i16     : SubRegIndex<16, 48>;        // Low 16 bit (48..63)
   def sub_i32     : SubRegIndex<32, 32>;        // Low 32 bit (32..63)

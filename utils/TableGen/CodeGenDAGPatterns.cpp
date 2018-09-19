@@ -554,7 +554,8 @@ bool TypeInfer::EnforceSmallerThan(TypeSetByHwMode &Small,
 ///    type T in Vec, such that U is the element type of T.
 bool TypeInfer::EnforceVectorEltTypeIs(TypeSetByHwMode &Vec,
                                        TypeSetByHwMode &Elem) {
-  ValidateOnExit _1(Vec, *this), _2(Elem, *this);
+  ValidateOnExit _1(Vec, *this);
+  ValidateOnExit _2(Elem, *this);
   if (TP.hasError())
     return false;
   bool Changed = false;

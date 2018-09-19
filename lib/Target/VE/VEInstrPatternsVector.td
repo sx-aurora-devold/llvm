@@ -32,6 +32,22 @@ def vec_broadcast   : SDNode<"VEISD::VEC_BROADCAST", SDTypeProfile<1, 1, [SDTCis
 def : Pat<(f64 (extractelt v256f64:$vx, i64:$index)),
           (f64 (LVSf64r $vx, (EXTRACT_SUBREG $index, sub_i32)))>;
 
+def : Pat<(i1 (extractelt v512i1:$vm, i64:$index)),
+(i1
+  (EXTRACT_SUBREG (ANDrr (EXTRACT_SUBREG $index, sub_i32), (EXTRACT_SUBREG $vm, sub_i32)),
+    //(i64 (SRLrr
+    //  (ANDrr
+    //    (SVMr (v256i1 $vm),
+    //          (i64 (SRLri $index, 6))
+    //    ),
+    //    (ANDri $index, 63)
+    //  ),
+    //  (i32 (EXTRACT_SUBREG (ANDri $index, 63), sub_i32))
+    //)),
+    sub_i1
+  )
+)>;
+
 def : Pat<(insertelt v256f64:$vx, f64:$sx, i64:$index),
           (LSVr v256f64:$vx, (EXTRACT_SUBREG $index, sub_i32), $sx)>;
 
