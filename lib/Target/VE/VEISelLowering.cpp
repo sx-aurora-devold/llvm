@@ -1278,7 +1278,7 @@ VETargetLowering::VETargetLowering(const TargetMachine &TM,
   setBooleanVectorContents(ZeroOrOneBooleanContent);
 
   // Set up the register classes.
-  addRegisterClass(MVT::i1, &VE::I1RegClass);
+  // addRegisterClass(MVT::i1, &VE::I1RegClass);
   addRegisterClass(MVT::i32, &VE::I32RegClass);
   addRegisterClass(MVT::i64, &VE::I64RegClass);
   addRegisterClass(MVT::f32, &VE::F32RegClass);
