@@ -1,6 +1,6 @@
 ; RUN: llc < %s -mtriple=ve-unknown-unknown | FileCheck %s
 
-define float @selectccaf(float, float, float, float) #0 {
+define float @selectccaf(float, float, float, float) {
 ; CHECK-LABEL: selectccaf:
 ; CHECK:       .LBB{{[0-9]+}}_2:
 ; CHECK-NEXT:    or %s0, 0, %s3
@@ -10,7 +10,7 @@ define float @selectccaf(float, float, float, float) #0 {
   ret float %6
 }
 
-define float @selectccat(float, float, float, float) #0 {
+define float @selectccat(float, float, float, float) {
 ; CHECK-LABEL: selectccat:
 ; CHECK:       .LBB{{[0-9]+}}_2:
 ; CHECK-NEXT:    or %s0, 0, %s2
@@ -20,11 +20,11 @@ define float @selectccat(float, float, float, float) #0 {
   ret float %6
 }
 
-define float @selectccoeq(float, float, float, float) #0 {
+define float @selectccoeq(float, float, float, float) {
 ; CHECK-LABEL: selectccoeq:
 ; CHECK:       .LBB{{[0-9]+}}_2:
-; CHECK-NEXT:    lea.sl %s34, %hi(.LCPI{{[0-9]+}}_0)
-; CHECK-NEXT:    ldu %s34, %lo(.LCPI{{[0-9]+}}_0)(,%s34)
+; CHECK-NEXT:    lea.sl %s34, .LCPI{{[0-9]+}}_0@hi
+; CHECK-NEXT:    ldu %s34, .LCPI{{[0-9]+}}_0@lo(,%s34)
 ; CHECK-NEXT:    # kill: def $sf3 killed $sf3 def $sx3
 ; CHECK-NEXT:    # kill: def $sf2 killed $sf2 def $sx2
 ; CHECK-NEXT:    fcmp.s %s34, %s0, %s34
@@ -36,11 +36,11 @@ define float @selectccoeq(float, float, float, float) #0 {
   ret float %6
 }
 
-define float @selectccone(float, float, float, float) #0 {
+define float @selectccone(float, float, float, float) {
 ; CHECK-LABEL: selectccone:
 ; CHECK:       .LBB{{[0-9]+}}_2:
-; CHECK-NEXT:    lea.sl %s34, %hi(.LCPI{{[0-9]+}}_0)
-; CHECK-NEXT:    ldu %s34, %lo(.LCPI{{[0-9]+}}_0)(,%s34)
+; CHECK-NEXT:    lea.sl %s34, .LCPI{{[0-9]+}}_0@hi
+; CHECK-NEXT:    ldu %s34, .LCPI{{[0-9]+}}_0@lo(,%s34)
 ; CHECK-NEXT:    # kill: def $sf3 killed $sf3 def $sx3
 ; CHECK-NEXT:    # kill: def $sf2 killed $sf2 def $sx2
 ; CHECK-NEXT:    fcmp.s %s34, %s0, %s34
@@ -52,11 +52,11 @@ define float @selectccone(float, float, float, float) #0 {
   ret float %6
 }
 
-define float @selectccogt(float, float, float, float) #0 {
+define float @selectccogt(float, float, float, float) {
 ; CHECK-LABEL: selectccogt:
 ; CHECK:       .LBB{{[0-9]+}}_2:
-; CHECK-NEXT:    lea.sl %s34, %hi(.LCPI{{[0-9]+}}_0)
-; CHECK-NEXT:    ldu %s34, %lo(.LCPI{{[0-9]+}}_0)(,%s34)
+; CHECK-NEXT:    lea.sl %s34, .LCPI{{[0-9]+}}_0@hi
+; CHECK-NEXT:    ldu %s34, .LCPI{{[0-9]+}}_0@lo(,%s34)
 ; CHECK-NEXT:    # kill: def $sf3 killed $sf3 def $sx3
 ; CHECK-NEXT:    # kill: def $sf2 killed $sf2 def $sx2
 ; CHECK-NEXT:    fcmp.s %s34, %s0, %s34
@@ -68,11 +68,11 @@ define float @selectccogt(float, float, float, float) #0 {
   ret float %6
 }
 
-define float @selectccoge(float, float, float, float) #0 {
+define float @selectccoge(float, float, float, float) {
 ; CHECK-LABEL: selectccoge:
 ; CHECK:       .LBB{{[0-9]+}}_2:
-; CHECK-NEXT:    lea.sl %s34, %hi(.LCPI{{[0-9]+}}_0)
-; CHECK-NEXT:    ldu %s34, %lo(.LCPI{{[0-9]+}}_0)(,%s34)
+; CHECK-NEXT:    lea.sl %s34, .LCPI{{[0-9]+}}_0@hi
+; CHECK-NEXT:    ldu %s34, .LCPI{{[0-9]+}}_0@lo(,%s34)
 ; CHECK-NEXT:    # kill: def $sf3 killed $sf3 def $sx3
 ; CHECK-NEXT:    # kill: def $sf2 killed $sf2 def $sx2
 ; CHECK-NEXT:    fcmp.s %s34, %s0, %s34
@@ -84,11 +84,11 @@ define float @selectccoge(float, float, float, float) #0 {
   ret float %6
 }
 
-define float @selectccolt(float, float, float, float) #0 {
+define float @selectccolt(float, float, float, float) {
 ; CHECK-LABEL: selectccolt:
 ; CHECK:       .LBB{{[0-9]+}}_2:
-; CHECK-NEXT:    lea.sl %s34, %hi(.LCPI{{[0-9]+}}_0)
-; CHECK-NEXT:    ldu %s34, %lo(.LCPI{{[0-9]+}}_0)(,%s34)
+; CHECK-NEXT:    lea.sl %s34, .LCPI{{[0-9]+}}_0@hi
+; CHECK-NEXT:    ldu %s34, .LCPI{{[0-9]+}}_0@lo(,%s34)
 ; CHECK-NEXT:    # kill: def $sf3 killed $sf3 def $sx3
 ; CHECK-NEXT:    # kill: def $sf2 killed $sf2 def $sx2
 ; CHECK-NEXT:    fcmp.s %s34, %s0, %s34
@@ -100,11 +100,11 @@ define float @selectccolt(float, float, float, float) #0 {
   ret float %6
 }
 
-define float @selectccole(float, float, float, float) #0 {
+define float @selectccole(float, float, float, float) {
 ; CHECK-LABEL: selectccole:
 ; CHECK:       .LBB{{[0-9]+}}_2:
-; CHECK-NEXT:    lea.sl %s34, %hi(.LCPI{{[0-9]+}}_0)
-; CHECK-NEXT:    ldu %s34, %lo(.LCPI{{[0-9]+}}_0)(,%s34)
+; CHECK-NEXT:    lea.sl %s34, .LCPI{{[0-9]+}}_0@hi
+; CHECK-NEXT:    ldu %s34, .LCPI{{[0-9]+}}_0@lo(,%s34)
 ; CHECK-NEXT:    # kill: def $sf3 killed $sf3 def $sx3
 ; CHECK-NEXT:    # kill: def $sf2 killed $sf2 def $sx2
 ; CHECK-NEXT:    fcmp.s %s34, %s0, %s34
@@ -116,7 +116,7 @@ define float @selectccole(float, float, float, float) #0 {
   ret float %6
 }
 
-define float @selectccord(float, float, float, float) #0 {
+define float @selectccord(float, float, float, float) {
 ; CHECK-LABEL: selectccord:
 ; CHECK:       .LBB{{[0-9]+}}_2:
 ; CHECK-NEXT:    # kill: def $sf3 killed $sf3 def $sx3
@@ -130,7 +130,7 @@ define float @selectccord(float, float, float, float) #0 {
   ret float %6
 }
 
-define float @selectccuno(float, float, float, float) #0 {
+define float @selectccuno(float, float, float, float) {
 ; CHECK-LABEL: selectccuno:
 ; CHECK:       .LBB{{[0-9]+}}_2:
 ; CHECK-NEXT:    # kill: def $sf3 killed $sf3 def $sx3
@@ -144,11 +144,11 @@ define float @selectccuno(float, float, float, float) #0 {
   ret float %6
 }
 
-define float @selectccueq(float, float, float, float) #0 {
+define float @selectccueq(float, float, float, float) {
 ; CHECK-LABEL: selectccueq:
 ; CHECK:       .LBB{{[0-9]+}}_2:
-; CHECK-NEXT:    lea.sl %s34, %hi(.LCPI{{[0-9]+}}_0)
-; CHECK-NEXT:    ldu %s34, %lo(.LCPI{{[0-9]+}}_0)(,%s34)
+; CHECK-NEXT:    lea.sl %s34, .LCPI{{[0-9]+}}_0@hi
+; CHECK-NEXT:    ldu %s34, .LCPI{{[0-9]+}}_0@lo(,%s34)
 ; CHECK-NEXT:    # kill: def $sf3 killed $sf3 def $sx3
 ; CHECK-NEXT:    # kill: def $sf2 killed $sf2 def $sx2
 ; CHECK-NEXT:    fcmp.s %s34, %s0, %s34
@@ -160,11 +160,11 @@ define float @selectccueq(float, float, float, float) #0 {
   ret float %6
 }
 
-define float @selectccune(float, float, float, float) #0 {
+define float @selectccune(float, float, float, float) {
 ; CHECK-LABEL: selectccune:
 ; CHECK:       .LBB{{[0-9]+}}_2:
-; CHECK-NEXT:    lea.sl %s34, %hi(.LCPI{{[0-9]+}}_0)
-; CHECK-NEXT:    ldu %s34, %lo(.LCPI{{[0-9]+}}_0)(,%s34)
+; CHECK-NEXT:    lea.sl %s34, .LCPI{{[0-9]+}}_0@hi
+; CHECK-NEXT:    ldu %s34, .LCPI{{[0-9]+}}_0@lo(,%s34)
 ; CHECK-NEXT:    # kill: def $sf3 killed $sf3 def $sx3
 ; CHECK-NEXT:    # kill: def $sf2 killed $sf2 def $sx2
 ; CHECK-NEXT:    fcmp.s %s34, %s0, %s34
@@ -176,11 +176,11 @@ define float @selectccune(float, float, float, float) #0 {
   ret float %6
 }
 
-define float @selectccugt(float, float, float, float) #0 {
+define float @selectccugt(float, float, float, float) {
 ; CHECK-LABEL: selectccugt:
 ; CHECK:       .LBB{{[0-9]+}}_2:
-; CHECK-NEXT:    lea.sl %s34, %hi(.LCPI{{[0-9]+}}_0)
-; CHECK-NEXT:    ldu %s34, %lo(.LCPI{{[0-9]+}}_0)(,%s34)
+; CHECK-NEXT:    lea.sl %s34, .LCPI{{[0-9]+}}_0@hi
+; CHECK-NEXT:    ldu %s34, .LCPI{{[0-9]+}}_0@lo(,%s34)
 ; CHECK-NEXT:    # kill: def $sf3 killed $sf3 def $sx3
 ; CHECK-NEXT:    # kill: def $sf2 killed $sf2 def $sx2
 ; CHECK-NEXT:    fcmp.s %s34, %s0, %s34
@@ -192,11 +192,11 @@ define float @selectccugt(float, float, float, float) #0 {
   ret float %6
 }
 
-define float @selectccuge(float, float, float, float) #0 {
+define float @selectccuge(float, float, float, float) {
 ; CHECK-LABEL: selectccuge:
 ; CHECK:       .LBB{{[0-9]+}}_2:
-; CHECK-NEXT:    lea.sl %s34, %hi(.LCPI{{[0-9]+}}_0)
-; CHECK-NEXT:    ldu %s34, %lo(.LCPI{{[0-9]+}}_0)(,%s34)
+; CHECK-NEXT:    lea.sl %s34, .LCPI{{[0-9]+}}_0@hi
+; CHECK-NEXT:    ldu %s34, .LCPI{{[0-9]+}}_0@lo(,%s34)
 ; CHECK-NEXT:    # kill: def $sf3 killed $sf3 def $sx3
 ; CHECK-NEXT:    # kill: def $sf2 killed $sf2 def $sx2
 ; CHECK-NEXT:    fcmp.s %s34, %s0, %s34
@@ -208,11 +208,11 @@ define float @selectccuge(float, float, float, float) #0 {
   ret float %6
 }
 
-define float @selectccult(float, float, float, float) #0 {
+define float @selectccult(float, float, float, float) {
 ; CHECK-LABEL: selectccult:
 ; CHECK:       .LBB{{[0-9]+}}_2:
-; CHECK-NEXT:    lea.sl %s34, %hi(.LCPI{{[0-9]+}}_0)
-; CHECK-NEXT:    ldu %s34, %lo(.LCPI{{[0-9]+}}_0)(,%s34)
+; CHECK-NEXT:    lea.sl %s34, .LCPI{{[0-9]+}}_0@hi
+; CHECK-NEXT:    ldu %s34, .LCPI{{[0-9]+}}_0@lo(,%s34)
 ; CHECK-NEXT:    # kill: def $sf3 killed $sf3 def $sx3
 ; CHECK-NEXT:    # kill: def $sf2 killed $sf2 def $sx2
 ; CHECK-NEXT:    fcmp.s %s34, %s0, %s34
@@ -224,11 +224,11 @@ define float @selectccult(float, float, float, float) #0 {
   ret float %6
 }
 
-define float @selectccule(float, float, float, float) #0 {
+define float @selectccule(float, float, float, float) {
 ; CHECK-LABEL: selectccule:
 ; CHECK:       .LBB{{[0-9]+}}_2:
-; CHECK-NEXT:    lea.sl %s34, %hi(.LCPI{{[0-9]+}}_0)
-; CHECK-NEXT:    ldu %s34, %lo(.LCPI{{[0-9]+}}_0)(,%s34)
+; CHECK-NEXT:    lea.sl %s34, .LCPI{{[0-9]+}}_0@hi
+; CHECK-NEXT:    ldu %s34, .LCPI{{[0-9]+}}_0@lo(,%s34)
 ; CHECK-NEXT:    # kill: def $sf3 killed $sf3 def $sx3
 ; CHECK-NEXT:    # kill: def $sf2 killed $sf2 def $sx2
 ; CHECK-NEXT:    fcmp.s %s34, %s0, %s34

@@ -50,6 +50,11 @@ namespace llvm {
       FMIN,
 
       GETFUNPLT,   // load function address through %plt insturction
+      GETSTACKTOP, // retrieve address of stack top (first address of
+                   // locals and temporaries)
+      GETTLSADDR,  // load address for TLS access
+
+      MEMBARRIER,  // Compiler barrier only; generate a no-op.
 
       CALL,        // A call instruction.
       RET_FLAG,    // Return with a flag operand.
@@ -131,11 +136,6 @@ namespace llvm {
                          const SmallVectorImpl<ISD::InputArg> &Ins,
                          const SDLoc &dl, SelectionDAG &DAG,
                          SmallVectorImpl<SDValue> &InVals) const override;
-    SDValue LowerFormalArguments_32(SDValue Chain, CallingConv::ID CallConv,
-                                    bool isVarArg,
-                                    const SmallVectorImpl<ISD::InputArg> &Ins,
-                                    const SDLoc &dl, SelectionDAG &DAG,
-                                    SmallVectorImpl<SDValue> &InVals) const;
     SDValue LowerFormalArguments_64(SDValue Chain, CallingConv::ID CallConv,
                                     bool isVarArg,
                                     const SmallVectorImpl<ISD::InputArg> &Ins,
@@ -145,8 +145,6 @@ namespace llvm {
     SDValue
       LowerCall(TargetLowering::CallLoweringInfo &CLI,
                 SmallVectorImpl<SDValue> &InVals) const override;
-    SDValue LowerCall_32(TargetLowering::CallLoweringInfo &CLI,
-                         SmallVectorImpl<SDValue> &InVals) const;
     SDValue LowerCall_64(TargetLowering::CallLoweringInfo &CLI,
                          SmallVectorImpl<SDValue> &InVals) const;
 
@@ -154,11 +152,6 @@ namespace llvm {
                         const SmallVectorImpl<ISD::OutputArg> &Outs,
                         const SmallVectorImpl<SDValue> &OutVals,
                         const SDLoc &dl, SelectionDAG &DAG) const override;
-    SDValue LowerReturn_32(SDValue Chain, CallingConv::ID CallConv,
-                           bool IsVarArg,
-                           const SmallVectorImpl<ISD::OutputArg> &Outs,
-                           const SmallVectorImpl<SDValue> &OutVals,
-                           const SDLoc &DL, SelectionDAG &DAG) const;
     SDValue LowerReturn_64(SDValue Chain, CallingConv::ID CallConv,
                            bool IsVarArg,
                            const SmallVectorImpl<ISD::OutputArg> &Outs,
@@ -167,6 +160,8 @@ namespace llvm {
 
     SDValue LowerGlobalAddress(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerGlobalTLSAddress(SDValue Op, SelectionDAG &DAG) const;
+    SDValue LowerToTLSGeneralDynamicModel(SDValue Op, SelectionDAG &DAG) const;
+    SDValue LowerToTLSLocalExecModel(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerConstantPool(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerBlockAddress(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerBuildVector(SDValue Op, SelectionDAG &DAG) const;
@@ -193,6 +188,12 @@ namespace llvm {
     SDValue LowerINTRINSIC_W_CHAIN(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerINTRINSIC_WO_CHAIN(SDValue Op, SelectionDAG &DAG) const;
 
+    SDValue LowerDYNAMIC_STACKALLOC(SDValue Op, SelectionDAG &DAG) const;
+
+    SDValue LowerATOMIC_FENCE(SDValue Op, SelectionDAG &DAG) const;
+    SDValue LowerATOMIC_LOAD(SDValue Op, SelectionDAG &DAG) const;
+    SDValue LowerATOMIC_STORE(SDValue Op, SelectionDAG &DAG) const;
+
     bool ShouldShrinkFPConstant(EVT VT) const override {
       // Do not shrink FP constpool if VT == MVT::f128.
       // (ldd, call _Q_fdtoq) is more expensive than two ldds.
@@ -200,11 +201,13 @@ namespace llvm {
     }
 
     bool shouldInsertFencesForAtomic(const Instruction *I) const override {
-      // FIXME: We insert fences for each atomics and generate
-      // sub-optimal code for PSO/TSO. (Approximately nobody uses any
-      // mode but TSO, which makes this even more silly)
+      // VE uses Release consistency, so need fence for each atomics.
       return true;
     }
+    Instruction *emitLeadingFence(IRBuilder<> &Builder, Instruction *Inst,
+                                  AtomicOrdering Ord) const override;
+    Instruction *emitTrailingFence(IRBuilder<> &Builder, Instruction *Inst,
+                                   AtomicOrdering Ord) const override;
 
     AtomicExpansionKind shouldExpandAtomicRMWInIR(AtomicRMWInst *AI) const override;
 

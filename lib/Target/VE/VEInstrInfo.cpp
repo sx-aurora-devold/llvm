@@ -367,6 +367,10 @@ void VEInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
     BuildMI(MBB, I, DL, get(VE::VORi1), DestReg)
         .addImm(0)
         .addReg(SrcReg, getKillRegState(KillSrc));
+  else if (VE::VMRegClass.contains(DestReg, SrcReg))
+    BuildMI(MBB, I, DL, get(VE::ANDM), DestReg)
+        .addReg(VE::VM0)
+        .addReg(SrcReg, getKillRegState(KillSrc));
   else if (VE::F128RegClass.contains(DestReg, SrcReg)) {
     // Use two FMOVD instructions.
     const unsigned subRegIdx[] = { VE::sub_even, VE::sub_odd };
@@ -646,6 +650,9 @@ bool VEInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     return true;
 #endif
   }
+  case VE::GETSTACKTOP: {
+    return expandGetStackTopPseudo(MI);
+  }
 #if 0
   case VE::VE_SELECT: {
     // (VESelect $dst, $CC, $condVal, $trueVal, $dst)
@@ -793,6 +800,33 @@ bool VEInstrInfo::expandExtendStackPseudo(MachineInstr &MI) const {
 
   BuildMI(BB, dl, TII.get(VE::ORri), VE::SX0)
     .addReg(VE::SX62).addImm(0);
+
+  MI.eraseFromParent(); // The pseudo instruction is gone now.
+  return true;
+}
+
+bool VEInstrInfo::expandGetStackTopPseudo(MachineInstr &MI) const {
+  MachineBasicBlock* MBB = MI.getParent();
+  MachineFunction &MF = *MBB->getParent();
+  const VEInstrInfo &TII =
+      *static_cast<const VEInstrInfo *>(MF.getSubtarget().getInstrInfo());
+  DebugLoc dl = MBB->findDebugLoc(MI);
+
+  // Create following instruction
+  //
+  //   dst = %sp + stack_size
+
+  const MachineFrameInfo &MFI = MF.getFrameInfo();
+
+  const TargetFrameLowering* TFL = MF.getSubtarget().getFrameLowering();
+  unsigned NumBytes = 176;
+  if (MFI.adjustsStack() && TFL->hasReservedCallFrame(MF))
+    NumBytes += MFI.getMaxCallFrameSize();
+
+  BuildMI(*MBB, MI, dl, TII.get(VE::LEArzi))
+    .addDef(MI.getOperand(0).getReg())
+    .addReg(VE::SX11)
+    .addImm(NumBytes);
 
   MI.eraseFromParent(); // The pseudo instruction is gone now.
   return true;

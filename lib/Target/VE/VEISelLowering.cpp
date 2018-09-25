@@ -1067,16 +1067,16 @@ VETargetLowering::LowerCall_64(TargetLowering::CallLoweringInfo &CLI,
       Callee = DAG.getTargetGlobalAddress(G->getGlobal(), DL, PtrVT, 0, 0);
       Callee = DAG.getNode(VEISD::GETFUNPLT, DL, PtrVT, Callee);
     } else {
-      Callee =  makeHiLoPair(Callee, VEMCExpr::VK_VE_HI,
-                             VEMCExpr::VK_VE_LO, DAG);
+      Callee =  makeHiLoPair(Callee, VEMCExpr::VK_VE_HI32,
+                             VEMCExpr::VK_VE_LO32, DAG);
     }
   } else if (ExternalSymbolSDNode *E = dyn_cast<ExternalSymbolSDNode>(Callee)) {
     if (IsPICCall) {
       Callee = DAG.getTargetExternalSymbol(E->getSymbol(), PtrVT, 0);
       Callee = DAG.getNode(VEISD::GETFUNPLT, DL, PtrVT, Callee);
     } else {
-      Callee =  makeHiLoPair(Callee, VEMCExpr::VK_VE_HI,
-                             VEMCExpr::VK_VE_LO, DAG);
+      Callee =  makeHiLoPair(Callee, VEMCExpr::VK_VE_HI32,
+                             VEMCExpr::VK_VE_LO32, DAG);
     }
   }
 
@@ -1258,9 +1258,8 @@ VETargetLowering::LowerCall_64(TargetLowering::CallLoweringInfo &CLI,
 //===----------------------------------------------------------------------===//
 
 TargetLowering::AtomicExpansionKind VETargetLowering::shouldExpandAtomicRMWInIR(AtomicRMWInst *AI) const {
-  if (AI->getOperation() == AtomicRMWInst::Xchg &&
-      AI->getType()->getPrimitiveSizeInBits() == 32)
-    return AtomicExpansionKind::None; // Uses xchg instruction
+  if (AI->getOperation() == AtomicRMWInst::Xchg)
+    return AtomicExpansionKind::None; // Uses ts1am instruction
 
   return AtomicExpansionKind::CmpXChg;
 }
@@ -1360,48 +1359,38 @@ VETargetLowering::VETargetLowering(const TargetMachine &TM,
   //setTargetDAGCombine(ISD::FMA);
 
   // ATOMICs.
-  // Atomics are supported on VE. 32-bit atomics are also
-  // supported by some Leon VE variants. Otherwise, atomics
-  // are unsupported.
+  // Atomics are supported on VE.
   setMaxAtomicSizeInBitsSupported(64);
-
   setMinCmpXchgSizeInBits(32);
 
-  // FIXME: VE's atomic instructions are not investivated yet.
-  setOperationAction(ISD::ATOMIC_FENCE, MVT::Other, Legal);
+  // Use custom inserter, LowerATOMIC_FENCE, for ATOMIC_FENCE.
+  setOperationAction(ISD::ATOMIC_FENCE, MVT::Other, Custom);
 
-  setOperationAction(ISD::ATOMIC_CMP_SWAP, MVT::i32, Expand);
-  setOperationAction(ISD::ATOMIC_LOAD_ADD, MVT::i32, Expand);
-  setOperationAction(ISD::ATOMIC_SWAP, MVT::i32, Expand);
-  setOperationAction(ISD::ATOMIC_LOAD_SUB, MVT::i32, Expand);
-  setOperationAction(ISD::ATOMIC_LOAD_AND, MVT::i32, Expand);
-  setOperationAction(ISD::ATOMIC_LOAD_CLR, MVT::i32, Expand);
-  setOperationAction(ISD::ATOMIC_LOAD_OR, MVT::i32, Expand);
-  setOperationAction(ISD::ATOMIC_LOAD_XOR, MVT::i32, Expand);
-  setOperationAction(ISD::ATOMIC_LOAD_NAND, MVT::i32, Expand);
-  setOperationAction(ISD::ATOMIC_LOAD_MIN, MVT::i32, Expand);
-  setOperationAction(ISD::ATOMIC_LOAD_MAX, MVT::i32, Expand);
-  setOperationAction(ISD::ATOMIC_LOAD_UMIN, MVT::i32, Expand);
-  setOperationAction(ISD::ATOMIC_LOAD_UMAX, MVT::i32, Expand);
-  setOperationAction(ISD::ATOMIC_LOAD, MVT::i32, Expand);
-  setOperationAction(ISD::ATOMIC_STORE, MVT::i32, Expand);
+  for (MVT VT : MVT::integer_valuetypes()) {
+    // Several atomic operations are converted to VE instructions well.
+    // Additional memory fences are generated in emitLeadingfence and
+    // emitTrailingFence functions.
+    setOperationAction(ISD::ATOMIC_LOAD, VT, Legal);
+    setOperationAction(ISD::ATOMIC_STORE, VT, Legal);
+    setOperationAction(ISD::ATOMIC_CMP_SWAP, VT, Legal);
+    setOperationAction(ISD::ATOMIC_SWAP, VT, Legal);
 
-  if (1) {
-    setOperationAction(ISD::ATOMIC_CMP_SWAP, MVT::i64, Expand);
-    setOperationAction(ISD::ATOMIC_LOAD_ADD, MVT::i64, Expand);
-    setOperationAction(ISD::ATOMIC_SWAP, MVT::i64, Expand);
-    setOperationAction(ISD::ATOMIC_LOAD_SUB, MVT::i64, Expand);
-    setOperationAction(ISD::ATOMIC_LOAD_AND, MVT::i64, Expand);
-    setOperationAction(ISD::ATOMIC_LOAD_CLR, MVT::i64, Expand);
-    setOperationAction(ISD::ATOMIC_LOAD_OR, MVT::i64, Expand);
-    setOperationAction(ISD::ATOMIC_LOAD_XOR, MVT::i64, Expand);
-    setOperationAction(ISD::ATOMIC_LOAD_NAND, MVT::i64, Expand);
-    setOperationAction(ISD::ATOMIC_LOAD_MIN, MVT::i64, Expand);
-    setOperationAction(ISD::ATOMIC_LOAD_MAX, MVT::i64, Expand);
-    setOperationAction(ISD::ATOMIC_LOAD_UMIN, MVT::i64, Expand);
-    setOperationAction(ISD::ATOMIC_LOAD_UMAX, MVT::i64, Expand);
-    setOperationAction(ISD::ATOMIC_LOAD, MVT::i64, Expand);
-    setOperationAction(ISD::ATOMIC_STORE, MVT::i64, Expand);
+    setOperationAction(ISD::ATOMIC_CMP_SWAP_WITH_SUCCESS, VT, Expand);
+
+    // FIXME: not supported "atmam" isntructions yet
+    setOperationAction(ISD::ATOMIC_LOAD_ADD, VT, Expand);
+    setOperationAction(ISD::ATOMIC_LOAD_SUB, VT, Expand);
+    setOperationAction(ISD::ATOMIC_LOAD_AND, VT, Expand);
+    setOperationAction(ISD::ATOMIC_LOAD_OR, VT, Expand);
+
+    // VE doesn't have follwing instructions
+    setOperationAction(ISD::ATOMIC_LOAD_CLR, VT, Expand);
+    setOperationAction(ISD::ATOMIC_LOAD_XOR, VT, Expand);
+    setOperationAction(ISD::ATOMIC_LOAD_NAND, VT, Expand);
+    setOperationAction(ISD::ATOMIC_LOAD_MIN, VT, Expand);
+    setOperationAction(ISD::ATOMIC_LOAD_MAX, VT, Expand);
+    setOperationAction(ISD::ATOMIC_LOAD_UMIN, VT, Expand);
+    setOperationAction(ISD::ATOMIC_LOAD_UMAX, VT, Expand);
   }
 
   // FIXME: VE's I128 stuff is not investivated yet
@@ -1495,7 +1484,6 @@ VETargetLowering::VETargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::BSWAP, MVT::i64, Legal);
   setOperationAction(ISD::CTPOP, MVT::i32, Legal);
   setOperationAction(ISD::CTPOP, MVT::i64, Legal);
-  // FIXME: VE has CTLZ, but not sure how to use it correctly atm.
   setOperationAction(ISD::CTLZ , MVT::i32, Legal);
   setOperationAction(ISD::CTLZ , MVT::i64, Legal);
   setOperationAction(ISD::CTTZ , MVT::i32, Expand);
@@ -1517,8 +1505,8 @@ VETargetLowering::VETargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::STACKRESTORE      , MVT::Other, Expand);
 
   // Expand DYNAMIC_STACKALLOC
-  setOperationAction(ISD::DYNAMIC_STACKALLOC, MVT::i32, Expand);
-  setOperationAction(ISD::DYNAMIC_STACKALLOC, MVT::i64, Expand);
+  setOperationAction(ISD::DYNAMIC_STACKALLOC, MVT::i32, Custom);
+  setOperationAction(ISD::DYNAMIC_STACKALLOC, MVT::i64, Custom);
 
 #if 0
   // VE natively supports vector loads
@@ -1543,8 +1531,8 @@ VETargetLowering::VETargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::FP_ROUND,  MVT::f128, Legal);
 
   // Other configurations related to f128.
-  setOperationAction(ISD::SELECT,    MVT::f128, Expand);
-  setOperationAction(ISD::SELECT_CC, MVT::f128, Expand);
+  setOperationAction(ISD::SELECT,    MVT::f128, Legal);
+  setOperationAction(ISD::SELECT_CC, MVT::f128, Legal);
   setOperationAction(ISD::SETCC,     MVT::f128, Legal);
   setOperationAction(ISD::BR_CC,     MVT::f128, Legal);
 
@@ -1600,6 +1588,9 @@ const char *VETargetLowering::getTargetNodeName(unsigned Opcode) const {
   case VEISD::FMAX:            return "VEISD::FMAX";
   case VEISD::FMIN:            return "VEISD::FMIN";
   case VEISD::GETFUNPLT:       return "VEISD::GETFUNPLT";
+  case VEISD::GETSTACKTOP:     return "VEISD::GETSTACKTOP";
+  case VEISD::GETTLSADDR:      return "VEISD::GETTLSADDR";
+  case VEISD::MEMBARRIER:      return "VEISD::MEMBARRIER";
   case VEISD::CALL:            return "VEISD::CALL";
   case VEISD::RET_FLAG:        return "VEISD::RET_FLAG";
   case VEISD::GLOBAL_BASE_REG: return "VEISD::GLOBAL_BASE_REG";
@@ -1722,15 +1713,29 @@ SDValue VETargetLowering::makeAddress(SDValue Op, SelectionDAG &DAG) const {
     MachineFrameInfo &MFI = DAG.getMachineFunction().getFrameInfo();
     MFI.setHasCalls(true);
 
-    if (dyn_cast<GlobalAddressSDNode>(Op) != nullptr &&
-        dyn_cast<GlobalAddressSDNode>(Op)->getGlobal()->hasLocalLinkage()) {
-      SDValue HiLo = makeHiLoPair(Op, VEMCExpr::VK_VE_GOTOFFHI,
-                                  VEMCExpr::VK_VE_GOTOFFLO, DAG);
+    if (dyn_cast<ConstantPoolSDNode>(Op) != nullptr ||
+        (dyn_cast<GlobalAddressSDNode>(Op) != nullptr &&
+         dyn_cast<GlobalAddressSDNode>(Op)->getGlobal()->hasLocalLinkage())) {
+      // Create following instructions for local linkage PIC code.
+      //     lea %s35, %gotoff_lo(.LCPI0_0)
+      //     and %s35, %s35, (32)0
+      //     lea.sl %s35, %gotoff_hi(.LCPI0_0)(%s35)
+      //     adds.l %s35, %s15, %s35                  ; %s15がGOT
+      // FIXME: use lea.sl %s35, %gotoff_hi(.LCPI0_0)(%s35, %s15)
+      SDValue HiLo = makeHiLoPair(Op, VEMCExpr::VK_VE_GOTOFF_HI32,
+                                  VEMCExpr::VK_VE_GOTOFF_LO32, DAG);
       SDValue GlobalBase = DAG.getNode(VEISD::GLOBAL_BASE_REG, DL, VT);
       return DAG.getNode(ISD::ADD, DL, VT, GlobalBase, HiLo);
     } else {
-      SDValue HiLo = makeHiLoPair(Op, VEMCExpr::VK_VE_GOTHI,
-                                  VEMCExpr::VK_VE_GOTLO, DAG);
+      // Create following instructions for not local linkage PIC code.
+      //     lea %s35, %got_lo(.LCPI0_0)
+      //     and %s35, %s35, (32)0
+      //     lea.sl %s35, %got_hi(.LCPI0_0)(%s35)
+      //     adds.l %s35, %s15, %s35                  ; %s15がGOT
+      //     ld     %s35, (,%s35)
+      // FIXME: use lea.sl %s35, %gotoff_hi(.LCPI0_0)(%s35, %s15)
+      SDValue HiLo = makeHiLoPair(Op, VEMCExpr::VK_VE_GOT_HI32,
+                                  VEMCExpr::VK_VE_GOT_LO32, DAG);
       SDValue GlobalBase = DAG.getNode(VEISD::GLOBAL_BASE_REG, DL, VT);
       SDValue AbsAddr = DAG.getNode(ISD::ADD, DL, VT, GlobalBase, HiLo);
       return DAG.getLoad(VT, DL, DAG.getEntryNode(), AbsAddr,
@@ -1743,27 +1748,11 @@ SDValue VETargetLowering::makeAddress(SDValue Op, SelectionDAG &DAG) const {
   default:
     llvm_unreachable("Unsupported absolute code model");
   case CodeModel::Small:
-    // abs32.
-    return makeHiLoPair(Op, VEMCExpr::VK_VE_HI,
-                        VEMCExpr::VK_VE_LO, DAG);
-  case CodeModel::Medium: {
-    // abs44.
-    SDValue H44 = makeHiLoPair(Op, VEMCExpr::VK_VE_H44,
-                               VEMCExpr::VK_VE_M44, DAG);
-    H44 = DAG.getNode(ISD::SHL, DL, VT, H44, DAG.getConstant(12, DL, MVT::i32));
-    SDValue L44 = withTargetFlags(Op, VEMCExpr::VK_VE_L44, DAG);
-    L44 = DAG.getNode(VEISD::Lo, DL, VT, L44);
-    return DAG.getNode(ISD::ADD, DL, VT, H44, L44);
-  }
-  case CodeModel::Large: {
+  case CodeModel::Medium:
+  case CodeModel::Large:
     // abs64.
-    SDValue Hi = makeHiLoPair(Op, VEMCExpr::VK_VE_HH,
-                              VEMCExpr::VK_VE_HM, DAG);
-    Hi = DAG.getNode(ISD::SHL, DL, VT, Hi, DAG.getConstant(32, DL, MVT::i32));
-    SDValue Lo = makeHiLoPair(Op, VEMCExpr::VK_VE_HI,
-                              VEMCExpr::VK_VE_LO, DAG);
-    return DAG.getNode(ISD::ADD, DL, VT, Hi, Lo);
-  }
+    return makeHiLoPair(Op, VEMCExpr::VK_VE_HI32,
+                        VEMCExpr::VK_VE_LO32, DAG);
   }
 }
 
@@ -1782,111 +1771,81 @@ SDValue VETargetLowering::LowerBlockAddress(SDValue Op,
   return makeAddress(Op, DAG);
 }
 
-#if 0
-SDValue VETargetLowering::LowerGlobalTLSAddress(SDValue Op,
-                                                   SelectionDAG &DAG) const {
-  GlobalAddressSDNode *GA = cast<GlobalAddressSDNode>(Op);
-  if (DAG.getTarget().Options.EmulatedTLS)
-    return LowerToTLSEmulatedModel(GA, DAG);
+SDValue VETargetLowering::LowerToTLSGeneralDynamicModel(
+  SDValue Op, SelectionDAG &DAG) const {
+  SDLoc dl(Op);
 
-  SDLoc DL(GA);
-  const GlobalValue *GV = GA->getGlobal();
+  // Generate following code:
+  //   t1: ch,glue = callseq_start t0, 0, 0
+  //   t2: i64,ch,glue = VEISD::GETTLSADDR t1, label, t1:1
+  //   t3: ch,glue = callseq_end t2, 0, 0, t2:2
+  //   t4: i64,ch,glue = CopyFromReg t3, Register:i64 $sx0, t3:1
+  SDValue Label = withTargetFlags(Op, 0, DAG);
   EVT PtrVT = getPointerTy(DAG.getDataLayout());
 
+  // Lowering the machine isd will make sure everything is in the right
+  // location.
+  SDValue Chain = DAG.getEntryNode();
+  SDVTList NodeTys = DAG.getVTList(MVT::Other, MVT::Glue);
+  const uint32_t *Mask = Subtarget->getRegisterInfo()->getCallPreservedMask(
+      DAG.getMachineFunction(), CallingConv::C);
+  Chain = DAG.getCALLSEQ_START(Chain, 64, 0, dl);
+  SDValue Args[] = { Chain, Label, DAG.getRegisterMask(Mask), Chain.getValue(1) };
+  Chain = DAG.getNode(VEISD::GETTLSADDR, dl, NodeTys, Args);
+  Chain = DAG.getCALLSEQ_END(Chain, DAG.getIntPtrConstant(64, dl, true),
+                             DAG.getIntPtrConstant(0, dl, true),
+                             Chain.getValue(1), dl);
+  Chain = DAG.getCopyFromReg(Chain, dl, VE::SX0, PtrVT, Chain.getValue(1));
+
+  // GETTLSADDR will be codegen'ed as call. Inform MFI that function has calls.
+  MachineFrameInfo &MFI = DAG.getMachineFunction().getFrameInfo();
+  MFI.setHasCalls(true);
+
+  return Chain;
+}
+
+SDValue VETargetLowering::LowerToTLSLocalExecModel(SDValue Op,
+                                                   SelectionDAG &DAG) const {
+  SDLoc dl(Op);
+  EVT PtrVT = getPointerTy(DAG.getDataLayout());
+
+  // Generate following code:
+  //   lea %s0, Op@tpoff_lo
+  //   and %s0, %s0, (32)0
+  //   lea.sl %s0, Op@tpoff_hi(%s0)
+  //   add %s0, %s0, %tp
+  // FIXME: use lea.sl %s0, Op@tpoff_hi(%tp, %s0) for better performance
+  SDValue HiLo = makeHiLoPair(Op, VEMCExpr::VK_VE_TPOFF_HI32,
+                              VEMCExpr::VK_VE_TPOFF_LO32, DAG);
+  return DAG.getNode(ISD::ADD, dl, PtrVT,
+                     DAG.getRegister(VE::SX14, PtrVT), HiLo);
+}
+
+SDValue VETargetLowering::LowerGlobalTLSAddress(SDValue Op,
+                                                SelectionDAG &DAG) const {
+#if 1
+  // Current implementation of nld doesn't allow local exec model code
+  // described in VE-tls_v1.1.pdf (*1) as its input.  The nld accept
+  // only general dynamic model and optimize it whenever.  So, here
+  // we need to generate only general dynamic model code sequence.
+  //
+  // *1: https://www.nec.com/en/global/prod/hpc/aurora/document/VE-tls_v1.1.pdf
+  return LowerToTLSGeneralDynamicModel(Op, DAG);
+#else
+  // FIXME: Use either general dynamic model or local exec model when
+  //        the nld accepts them.
+  GlobalAddressSDNode *GA = cast<GlobalAddressSDNode>(Op);
+  const GlobalValue *GV = GA->getGlobal();
   TLSModel::Model model = getTargetMachine().getTLSModel(GV);
 
   if (model == TLSModel::GeneralDynamic || model == TLSModel::LocalDynamic) {
-    unsigned HiTF = ((model == TLSModel::GeneralDynamic)
-                     ? VEMCExpr::VK_VE_TLS_GD_HI22
-                     : VEMCExpr::VK_VE_TLS_LDM_HI22);
-    unsigned LoTF = ((model == TLSModel::GeneralDynamic)
-                     ? VEMCExpr::VK_VE_TLS_GD_LO10
-                     : VEMCExpr::VK_VE_TLS_LDM_LO10);
-    unsigned addTF = ((model == TLSModel::GeneralDynamic)
-                      ? VEMCExpr::VK_VE_TLS_GD_ADD
-                      : VEMCExpr::VK_VE_TLS_LDM_ADD);
-    unsigned callTF = ((model == TLSModel::GeneralDynamic)
-                       ? VEMCExpr::VK_VE_TLS_GD_CALL
-                       : VEMCExpr::VK_VE_TLS_LDM_CALL);
-
-    SDValue HiLo = makeHiLoPair(Op, HiTF, LoTF, DAG);
-    SDValue Base = DAG.getNode(VEISD::GLOBAL_BASE_REG, DL, PtrVT);
-    SDValue Argument = DAG.getNode(VEISD::TLS_ADD, DL, PtrVT, Base, HiLo,
-                               withTargetFlags(Op, addTF, DAG));
-
-    SDValue Chain = DAG.getEntryNode();
-    SDValue InFlag;
-
-    Chain = DAG.getCALLSEQ_START(Chain, 1, 0, DL);
-    Chain = DAG.getCopyToReg(Chain, DL, SP::O0, Argument, InFlag);
-    InFlag = Chain.getValue(1);
-    SDValue Callee = DAG.getTargetExternalSymbol("__tls_get_addr", PtrVT);
-    SDValue Symbol = withTargetFlags(Op, callTF, DAG);
-
-    SDVTList NodeTys = DAG.getVTList(MVT::Other, MVT::Glue);
-    const uint32_t *Mask = Subtarget->getRegisterInfo()->getCallPreservedMask(
-        DAG.getMachineFunction(), CallingConv::C);
-    assert(Mask && "Missing call preserved mask for calling convention");
-    SDValue Ops[] = {Chain,
-                     Callee,
-                     Symbol,
-                     DAG.getRegister(SP::O0, PtrVT),
-                     DAG.getRegisterMask(Mask),
-                     InFlag};
-    Chain = DAG.getNode(VEISD::TLS_CALL, DL, NodeTys, Ops);
-    InFlag = Chain.getValue(1);
-    Chain = DAG.getCALLSEQ_END(Chain, DAG.getIntPtrConstant(1, DL, true),
-                               DAG.getIntPtrConstant(0, DL, true), InFlag, DL);
-    InFlag = Chain.getValue(1);
-    SDValue Ret = DAG.getCopyFromReg(Chain, DL, SP::O0, PtrVT, InFlag);
-
-    if (model != TLSModel::LocalDynamic)
-      return Ret;
-
-    SDValue Hi = DAG.getNode(VEISD::Hi, DL, PtrVT,
-                 withTargetFlags(Op, VEMCExpr::VK_VE_TLS_LDO_HIX22, DAG));
-    SDValue Lo = DAG.getNode(VEISD::Lo, DL, PtrVT,
-                 withTargetFlags(Op, VEMCExpr::VK_VE_TLS_LDO_LOX10, DAG));
-    HiLo =  DAG.getNode(ISD::XOR, DL, PtrVT, Hi, Lo);
-    return DAG.getNode(VEISD::TLS_ADD, DL, PtrVT, Ret, HiLo,
-                   withTargetFlags(Op, VEMCExpr::VK_VE_TLS_LDO_ADD, DAG));
+    return LowerToTLSGeneralDynamicModel(Op, DAG);
+  } else if (model == TLSModel::InitialExec || model == TLSModel::LocalExec) {
+    return LowerToTLSLocalExecModel(Op, DAG);
   }
-
-  if (model == TLSModel::InitialExec) {
-    unsigned ldTF     = ((PtrVT == MVT::i64)? VEMCExpr::VK_VE_TLS_IE_LDX
-                         : VEMCExpr::VK_VE_TLS_IE_LD);
-
-    SDValue Base = DAG.getNode(VEISD::GLOBAL_BASE_REG, DL, PtrVT);
-
-    // GLOBAL_BASE_REG codegen'ed with call. Inform MFI that this
-    // function has calls.
-    MachineFrameInfo &MFI = DAG.getMachineFunction().getFrameInfo();
-    MFI.setHasCalls(true);
-
-    SDValue TGA = makeHiLoPair(Op,
-                               VEMCExpr::VK_VE_TLS_IE_HI22,
-                               VEMCExpr::VK_VE_TLS_IE_LO10, DAG);
-    SDValue Ptr = DAG.getNode(ISD::ADD, DL, PtrVT, Base, TGA);
-    SDValue Offset = DAG.getNode(VEISD::TLS_LD,
-                                 DL, PtrVT, Ptr,
-                                 withTargetFlags(Op, ldTF, DAG));
-    return DAG.getNode(VEISD::TLS_ADD, DL, PtrVT,
-                       DAG.getRegister(SP::G7, PtrVT), Offset,
-                       withTargetFlags(Op,
-                                       VEMCExpr::VK_VE_TLS_IE_ADD, DAG));
-  }
-
-  assert(model == TLSModel::LocalExec);
-  SDValue Hi = DAG.getNode(VEISD::Hi, DL, PtrVT,
-                  withTargetFlags(Op, VEMCExpr::VK_VE_TLS_LE_HIX22, DAG));
-  SDValue Lo = DAG.getNode(VEISD::Lo, DL, PtrVT,
-                  withTargetFlags(Op, VEMCExpr::VK_VE_TLS_LE_LOX10, DAG));
-  SDValue Offset =  DAG.getNode(ISD::XOR, DL, PtrVT, Hi, Lo);
-
-  return DAG.getNode(ISD::ADD, DL, PtrVT,
-                     DAG.getRegister(SP::G7, PtrVT), Offset);
-}
+  llvm_unreachable("bogus TLS model");
 #endif
+}
 
 #if 0
 SDValue VETargetLowering::LowerF128_LibCallArg(SDValue Chain,
@@ -2015,53 +1974,68 @@ static SDValue LowerVAARG(SDValue Op, SelectionDAG &DAG) {
   SDLoc DL(Node);
   SDValue VAList =
       DAG.getLoad(PtrVT, DL, InChain, VAListPtr, MachinePointerInfo(SV));
-  // Increment the pointer, VAList, by 8 to the next vaarg.
-  SDValue NextPtr = DAG.getNode(ISD::ADD, DL, PtrVT, VAList,
-                                DAG.getIntPtrConstant(8,
-                                                      DL));
+  SDValue Chain = VAList.getValue(1);
+  SDValue NextPtr;
+
+  if(VT == MVT::f128) {
+    // Alignment
+    int Align = 16;
+    VAList = DAG.getNode(ISD::ADD, DL, PtrVT, VAList,
+                         DAG.getConstant(Align - 1, DL, PtrVT));
+    VAList = DAG.getNode(ISD::AND, DL, PtrVT, VAList,
+                         DAG.getConstant(-Align, DL, PtrVT));
+    // Increment the pointer, VAList, by 16 to the next vaarg.
+    NextPtr = DAG.getNode(ISD::ADD, DL, PtrVT, VAList,
+                          DAG.getIntPtrConstant(16, DL));
+  } else {
+    // Increment the pointer, VAList, by 8 to the next vaarg.
+    NextPtr = DAG.getNode(ISD::ADD, DL, PtrVT, VAList,
+                          DAG.getIntPtrConstant(8, DL));
+  }
+
   // Store the incremented VAList to the legalized pointer.
-  InChain = DAG.getStore(VAList.getValue(1), DL, NextPtr, VAListPtr,
+  InChain = DAG.getStore(Chain, DL, NextPtr, VAListPtr,
                          MachinePointerInfo(SV));
+
   // Load the actual argument out of the pointer VAList.
   // We can't count on greater alignment than the word size.
   return DAG.getLoad(VT, DL, InChain, VAList, MachinePointerInfo(),
                      std::min(PtrVT.getSizeInBits(), VT.getSizeInBits()) / 8);
 }
 
-#if 0
-static SDValue LowerDYNAMIC_STACKALLOC(SDValue Op, SelectionDAG &DAG,
-                                       const VESubtarget *Subtarget) {
-  SDValue Chain = Op.getOperand(0);  // Legalize the chain.
-  SDValue Size  = Op.getOperand(1);  // Legalize the size.
-  unsigned Align = cast<ConstantSDNode>(Op.getOperand(2))->getZExtValue();
-  unsigned StackAlign = Subtarget->getFrameLowering()->getStackAlignment();
-  EVT VT = Size->getValueType(0);
+SDValue VETargetLowering::LowerDYNAMIC_STACKALLOC(
+    SDValue Op, SelectionDAG &DAG) const {
+  // Generate following code.
+  //   (void)__llvm_grow_stack(size);
+  //   ret = GETSTACKTOP;        // pseudo instruction
   SDLoc dl(Op);
 
-  // TODO: implement over-aligned alloca. (Note: also implies
-  // supporting support for overaligned function frames + dynamic
-  // allocations, at all, which currently isn't supported)
-  if (Align > StackAlign) {
-    const MachineFunction &MF = DAG.getMachineFunction();
-    report_fatal_error("Function \"" + Twine(MF.getName()) + "\": "
-                       "over-aligned dynamic alloca not supported.");
-  }
+  SDValue Size  = Op.getOperand(1);  // Legalize the size.
+  EVT VT = Size->getValueType(0);
 
-  // The resultant pointer needs to be above the register spill area
-  // at the bottom of the stack.  The format is described in VESubtarget.cpp.
-  unsigned regSpillArea = 176;
+  // Prepare arguments
+  TargetLowering::ArgListTy Args;
+  TargetLowering::ArgListEntry Entry;
+  Entry.Node = Size;
+  Entry.Ty = Entry.Node.getValueType().getTypeForEVT(*DAG.getContext());
+  Args.push_back(Entry);
+  Type* RetTy = Type::getVoidTy(*DAG.getContext());
 
-  unsigned SPReg = VE::SX11;
-  SDValue SP = DAG.getCopyFromReg(Chain, dl, SPReg, VT);
-  SDValue NewSP = DAG.getNode(ISD::SUB, dl, VT, SP, Size); // Value
-  Chain = DAG.getCopyToReg(SP.getValue(1), dl, SPReg, NewSP);    // Output chain
+  EVT PtrVT = getPointerTy(DAG.getDataLayout());
+  SDValue Callee = DAG.getTargetExternalSymbol("__llvm_grow_stack", PtrVT, 0);
 
-  SDValue NewVal = DAG.getNode(ISD::ADD, dl, VT, NewSP,
-                               DAG.getConstant(regSpillArea, dl, VT));
-  SDValue Ops[2] = { NewVal, Chain };
+  TargetLowering::CallLoweringInfo CLI(DAG);
+  CLI.setDebugLoc(dl)
+      .setChain(DAG.getEntryNode())
+      .setCallee(CallingConv::VE_LLVM_GROW_STACK, RetTy,
+                 Callee, std::move(Args))
+      .setDiscardResult(true);
+  std::pair<SDValue, SDValue> pair = LowerCallTo(CLI);
+  SDValue Chain = pair.second;
+  SDValue Value =  DAG.getNode(VEISD::GETSTACKTOP, dl, VT, Chain);
+  SDValue Ops[2] = {Value, Chain};
   return DAG.getMergeValues(Ops, dl);
 }
-#endif
 
 static SDValue LowerFRAMEADDR(SDValue Op, SelectionDAG &DAG,
                               const VETargetLowering &TLI,
@@ -2304,16 +2278,92 @@ static SDValue LowerUMULO_SMULO(SDValue Op, SelectionDAG &DAG,
   SDValue Ops[2] = { BottomHalf, TopHalf } ;
   return DAG.getMergeValues(Ops, dl);
 }
-
-static SDValue LowerATOMIC_LOAD_STORE(SDValue Op, SelectionDAG &DAG) {
-  if (isStrongerThanMonotonic(cast<AtomicSDNode>(Op)->getOrdering()))
-  // Expand with a fence.
-  return SDValue();
-
-  // Monotonic load/stores are legal.
-  return Op;
-}
 #endif
+
+SDValue VETargetLowering::LowerATOMIC_FENCE(SDValue Op,
+                                            SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+  AtomicOrdering FenceOrdering = static_cast<AtomicOrdering>(
+    cast<ConstantSDNode>(Op.getOperand(1))->getZExtValue());
+  SyncScope::ID FenceSSID = static_cast<SyncScope::ID>(
+    cast<ConstantSDNode>(Op.getOperand(2))->getZExtValue());
+
+  // VE uses Release consistency, so need a fence instruction if it is a
+  // cross-thread fence.
+  if (FenceSSID == SyncScope::System) {
+    switch (FenceOrdering) {
+    case AtomicOrdering::NotAtomic:
+    case AtomicOrdering::Unordered:
+    case AtomicOrdering::Monotonic:
+      // No need to generate fencem instruction here.
+      break;
+    case AtomicOrdering::Acquire:
+      // Generate "fencem 2" as acquire fence.
+      return SDValue(DAG.getMachineNode(VE::FENCEload, DL, MVT::Other,
+                                        Op.getOperand(0)), 0);
+    case AtomicOrdering::Release:
+      // Generate "fencem 1" as release fence.
+      return SDValue(DAG.getMachineNode(VE::FENCEstore, DL, MVT::Other,
+                                        Op.getOperand(0)), 0);
+    case AtomicOrdering::AcquireRelease:
+    case AtomicOrdering::SequentiallyConsistent:
+      // Generate "fencem 3" as acq_rel and seq_cst fence.
+      // FIXME: "fencem 3" doesn't wait for for PCIe deveices accesses,
+      //        so  seq_cst may require more instruction for them.
+      return SDValue(DAG.getMachineNode(VE::FENCEloadstore, DL, MVT::Other,
+                                        Op.getOperand(0)), 0);
+    }
+  }
+
+  // MEMBARRIER is a compiler barrier; it codegens to a no-op.
+  return DAG.getNode(VEISD::MEMBARRIER, DL, MVT::Other, Op.getOperand(0));
+}
+
+static Instruction* callIntrinsic(IRBuilder<> &Builder, Intrinsic::ID Id) {
+  Module *M = Builder.GetInsertBlock()->getParent()->getParent();
+  Function *Func = Intrinsic::getDeclaration(M, Id);
+  return Builder.CreateCall(Func, {});
+}
+
+Instruction *VETargetLowering::emitLeadingFence(IRBuilder<> &Builder,
+                                                Instruction *Inst,
+                                                AtomicOrdering Ord) const {
+  switch (Ord) {
+  case AtomicOrdering::NotAtomic:
+  case AtomicOrdering::Unordered:
+    llvm_unreachable("Invalid fence: unordered/non-atomic");
+  case AtomicOrdering::Monotonic:
+  case AtomicOrdering::Acquire:
+    return nullptr; // Nothing to do
+  case AtomicOrdering::Release:
+  case AtomicOrdering::AcquireRelease:
+    return callIntrinsic(Builder, Intrinsic::ve_fencem1);
+  case AtomicOrdering::SequentiallyConsistent:
+    if (!Inst->hasAtomicStore())
+      return nullptr; // Nothing to do
+    return callIntrinsic(Builder, Intrinsic::ve_fencem3);
+  }
+  llvm_unreachable("Unknown fence ordering in emitLeadingFence");
+}
+
+Instruction *VETargetLowering::emitTrailingFence(IRBuilder<> &Builder,
+                                                 Instruction *Inst,
+                                                 AtomicOrdering Ord) const {
+  switch (Ord) {
+  case AtomicOrdering::NotAtomic:
+  case AtomicOrdering::Unordered:
+    llvm_unreachable("Invalid fence: unordered/not-atomic");
+  case AtomicOrdering::Monotonic:
+  case AtomicOrdering::Release:
+    return nullptr; // Nothing to do
+  case AtomicOrdering::Acquire:
+  case AtomicOrdering::AcquireRelease:
+    return callIntrinsic(Builder, Intrinsic::ve_fencem2);
+  case AtomicOrdering::SequentiallyConsistent:
+    return callIntrinsic(Builder, Intrinsic::ve_fencem3);
+  }
+  llvm_unreachable("Unknown fence ordering in emitTrailingFence");
+}
 
 SDValue VETargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
                                                      SelectionDAG &DAG) const {
@@ -2484,8 +2534,7 @@ LowerOperation(SDValue Op, SelectionDAG &DAG) const {
                                                        Subtarget);
   case ISD::FRAMEADDR:          return LowerFRAMEADDR(Op, DAG, *this,
                                                       Subtarget);
-  case ISD::GlobalTLSAddress:   // return LowerGlobalTLSAddress(Op, DAG);
-    report_fatal_error("GlobalTLSAddress expansion is not implemented yet");
+  case ISD::GlobalTLSAddress:   return LowerGlobalTLSAddress(Op, DAG);
   case ISD::GlobalAddress:      return LowerGlobalAddress(Op, DAG);
   case ISD::BlockAddress:       return LowerBlockAddress(Op, DAG);
   case ISD::ConstantPool:       return LowerConstantPool(Op, DAG);
@@ -2495,9 +2544,7 @@ LowerOperation(SDValue Op, SelectionDAG &DAG) const {
     report_fatal_error("EH_SJLJ_LONGJMP expansion is not implemented yet");
   case ISD::VASTART:            return LowerVASTART(Op, DAG, *this);
   case ISD::VAARG:              return LowerVAARG(Op, DAG);
-  case ISD::DYNAMIC_STACKALLOC: // return LowerDYNAMIC_STACKALLOC(Op, DAG,
-                                //                                Subtarget);
-    report_fatal_error("DYNAMIC_STACKALLOC expansion is not implemented yet");
+  case ISD::DYNAMIC_STACKALLOC: return LowerDYNAMIC_STACKALLOC(Op, DAG);
 
   case ISD::LOAD:               return LowerLOAD(Op, DAG);
   case ISD::STORE:              return LowerSTORE(Op, DAG);
@@ -2510,9 +2557,7 @@ LowerOperation(SDValue Op, SelectionDAG &DAG) const {
   case ISD::UMULO:
   case ISD::SMULO:              // return LowerUMULO_SMULO(Op, DAG, *this);
     report_fatal_error("UMULO or SMULO expansion is not implemented yet");
-  case ISD::ATOMIC_LOAD:
-  case ISD::ATOMIC_STORE:       // return LowerATOMIC_LOAD_STORE(Op, DAG);
-    report_fatal_error("ATOMIC_LOAD or ATOMIC_STORE expansion is not implemented yet");
+  case ISD::ATOMIC_FENCE:       return LowerATOMIC_FENCE(Op, DAG);
   case ISD::INTRINSIC_WO_CHAIN: return LowerINTRINSIC_WO_CHAIN(Op, DAG);
     //report_fatal_error("INTRINSIC_WO_CHAIN expansion is not implemented yet");
   case ISD::BUILD_VECTOR:      return LowerBuildVector(Op, DAG);
@@ -2664,12 +2709,12 @@ VETargetLowering::emitEHSjLjSetJmp(MachineInstr &MI,
   // Instructions to store jmp location
   MIB = BuildMI(thisMBB, DL, TII->get(SP::SETHIi))
             .addReg(LabelReg, RegState::Define)
-            .addMBB(restoreMBB, VEMCExpr::VK_VE_HI);
+            .addMBB(restoreMBB, VEMCExpr::VK_VE_HI32);
 
   MIB = BuildMI(thisMBB, DL, TII->get(SP::ORri))
             .addReg(LabelReg2, RegState::Define)
             .addReg(LabelReg, RegState::Kill)
-            .addMBB(restoreMBB, VEMCExpr::VK_VE_LO);
+            .addMBB(restoreMBB, VEMCExpr::VK_VE_LO32);
 
   MIB = BuildMI(thisMBB, DL, TII->get(SP::STri))
             .addReg(BufReg)
