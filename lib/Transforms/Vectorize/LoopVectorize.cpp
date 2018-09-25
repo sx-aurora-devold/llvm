@@ -3505,7 +3505,7 @@ void InnerLoopVectorizer::fixLCSSAPHIs() {
       auto *IncomingValue = LCSSAPhi.getIncomingValue(0);
       // Non-instruction incoming values will have only one value.
       unsigned LastLane = 0;
-      if (isa<Instruction>(IncomingValue)) 
+      if (isa<Instruction>(IncomingValue))
           LastLane = Cost->isUniformAfterVectorization(
                          cast<Instruction>(IncomingValue), VF)
                          ? 0
@@ -5802,7 +5802,7 @@ INITIALIZE_PASS_END(LoopVectorize, LV_NAME, lv_name, false, false)
 namespace llvm {
 
 Pass *createLoopVectorizePass(bool NoUnrolling, bool AlwaysVectorize) {
-  return new LoopVectorize(NoUnrolling, AlwaysVectorize);
+  return new LoopVectorize(NoUnrolling, getenv("NO_LV") ? false : AlwaysVectorize);
 }
 
 } // end namespace llvm

@@ -5,11 +5,17 @@
 
 // Memory Access
 
+def : Pat<(v256i64 (load ADDRri:$addr)), 
+          (v256i64 (VLDir 8, (LEAasx ADDRri:$addr)))>;
+
 def : Pat<(v256f64 (load ADDRri:$addr)), 
           (v256f64 (VLDir 8, (LEAasx ADDRri:$addr)))>;
 
 def : Pat<(v512f32 (load ADDRri:$addr)), 
           (v512f32 (VLDir 8, (LEAasx ADDRri:$addr)))>;
+
+def : Pat<(store v256i64:$vx, ADDRri:$addr), 
+          (VSTir v256i64:$vx, 8, (LEAasx ADDRri:$addr))>;
 
 def : Pat<(store v256f64:$vx, ADDRri:$addr), 
           (VSTir v256f64:$vx, 8, (LEAasx ADDRri:$addr))>;

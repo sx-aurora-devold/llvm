@@ -110,6 +110,11 @@ bool LoopVectorizeHints::allowVectorization(Function *F, Loop *L,
     return false;
   }
 
+  if (getenv("NO_LV") && getForce() == LoopVectorizeHints::FK_Enabled) {
+    LLVM_DEBUG(dbgs() << "LV: Not vectorizing (NO_LV) is set!\n");
+    return false;
+  }
+
   if (!AlwaysVectorize && getForce() != LoopVectorizeHints::FK_Enabled) {
     LLVM_DEBUG(dbgs() << "LV: Not vectorizing: No #pragma vectorize enable.\n");
     emitRemarkWithHints();
@@ -666,7 +671,7 @@ bool LoopVectorizationLegality::canVectorizeInstrs() {
         // complementary set: NotAllowedExit. These include (but may not be
         // limited to):
         // 1. Reduction phis as they represent the one-before-last value, which
-        // is not available when vectorized 
+        // is not available when vectorized
         // 2. Induction phis and increment when SCEV predicates cannot be used
         // outside the loop - see addInductionPhi
         // 3. Non-Phis with outside uses when SCEV predicates cannot be used
@@ -675,7 +680,7 @@ bool LoopVectorizationLegality::canVectorizeInstrs() {
         // 4. FirstOrderRecurrence phis that can possibly be handled by
         // extraction.
         // By recording these, we can then reason about ways to vectorize each
-        // of these NotAllowedExit. 
+        // of these NotAllowedExit.
         InductionDescriptor ID;
         if (InductionDescriptor::isInductionPHI(Phi, TheLoop, PSE, ID)) {
           addInductionPhi(Phi, ID, AllowedExit);
