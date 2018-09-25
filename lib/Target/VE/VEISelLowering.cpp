@@ -1370,10 +1370,10 @@ VETargetLowering::VETargetLowering(const TargetMachine &TM,
     // Several atomic operations are converted to VE instructions well.
     // Additional memory fences are generated in emitLeadingfence and
     // emitTrailingFence functions.
-    setOperationAction(ISD::ATOMIC_LOAD, VT, Legal);
-    setOperationAction(ISD::ATOMIC_STORE, VT, Legal);
-    setOperationAction(ISD::ATOMIC_CMP_SWAP, VT, Legal);
-    setOperationAction(ISD::ATOMIC_SWAP, VT, Legal);
+    setOperationAction(ISD::ATOMIC_LOAD, VT, Expand);
+    setOperationAction(ISD::ATOMIC_STORE, VT, Expand);
+    setOperationAction(ISD::ATOMIC_CMP_SWAP, VT, Expand);
+    setOperationAction(ISD::ATOMIC_SWAP, VT, Expand);
 
     setOperationAction(ISD::ATOMIC_CMP_SWAP_WITH_SUCCESS, VT, Expand);
 

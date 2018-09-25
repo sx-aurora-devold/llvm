@@ -1356,15 +1356,6 @@ def CTRL_FENCE : RR<
     "fencei",
     []>;
 
-//CX = AVO; SX = X LF SF; SY = C2 C1 C0;
-let cx = 0, sx = 3, cy = 0, sy = 0, cz = 0, sz = 0 in
-def MEM_FENCE : RR<
-    0x20, (outs), (ins),
-    "fencem 3",
-    [(atomic_fence (imm), (imm))]>;
-
-//def : Pat<(atomic_fence (imm), (imm)), (MEM_FENCE)>;
-
 // Save Instruction Counter
 
 let cx = 0, cy = 0, sy = 0, cz = 0, sz = 0 /* , Uses = [IC] */ in
