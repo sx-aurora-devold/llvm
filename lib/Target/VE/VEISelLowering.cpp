@@ -1319,6 +1319,11 @@ VETargetLowering::VETargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::BUILD_VECTOR, VT, Custom);
   }
 
+  // currently unsupported math functions
+  for (MVT VT : MVT::vector_valuetypes()) {
+    setOperationAction(ISD::FABS, VT, Expand);
+  }
+
   // Custom legalize GlobalAddress nodes into LO/HI parts.
   setOperationAction(ISD::GlobalAddress, PtrVT, Custom);
   setOperationAction(ISD::GlobalTLSAddress, PtrVT, Custom);
