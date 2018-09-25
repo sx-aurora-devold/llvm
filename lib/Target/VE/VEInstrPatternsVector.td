@@ -65,6 +65,9 @@ def : Pat<(v512i32 (vec_broadcast i64:$sy)), (VBRDpr i64:$sy)>;
 def : Pat<(setcc v256i64:$vx, v256i64:$vy, CCSIOp:$cond),
           (v256i1 (VFMKv (icond2cc $cond), (VCMPlv v256i64:$vx, v256i64:$vy)))>;
 
+def : Pat<(setcc v256f64:$vx, v256f64:$vy, CCSIOp:$cond),
+          (v256i1 (VFMKv (fcond2cc $cond), (VCMPwv v256f64:$vx, v256f64:$vy)))>;
+
 // (VFMKv (i32 uimm6:$cc), v256f64:$vz)
 
 // def : Pat<(i32 (setcc i64:$LHS, i64:$RHS, CCSIOp:$cond)),
