@@ -1073,6 +1073,9 @@ def NEGMp : PseudoVec<(outs VM512:$vmx), (ins VM512:$vmy), "", []>;
 let cx = 0, sx = 0, cy = 0, cz = 0, sz = 0, Defs = [VL] in
 def LVL : RR<0xBF, (outs), (ins I32:$sy), "lvl $sy", []>;
 
+let cx = 0, sx = 0, cy = 0, cz = 0, sz = 0, Defs = [VL] in
+def SVL : RR<0x2F, (outs I32:$sx), (ins), "svl $sx", []>;
+
 // Pattern Matchings for Vector Intrinsics
 
 def : Pat<(int_ve_lvl i32:$sy), (LVL i32:$sy)>;
