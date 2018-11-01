@@ -2,3 +2,6 @@
 	path = tools/rv
 	url = https://github.com/cdl-saarland/rv.git
 	branch = necllvm
+[submodule "tools/clang"]
+	path = tools/clang
+	url = https://github.com/SXAuroraTSUBASAResearch/clang.git
