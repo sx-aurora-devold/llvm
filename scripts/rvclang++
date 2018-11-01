@@ -1,0 +1,7 @@
+#! /usr/bin/bash
+
+CLANGFLAGS="-fno-slp-vectorize -mllvm -llvm-loopvec=false -Xclang -load -Xclang libRV.so -mllvm -rv"
+
+clang++ ${CLANGFLAGS} $@
+
+
