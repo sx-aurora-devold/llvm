@@ -21,11 +21,20 @@
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineMemOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "ve"
+
+using namespace llvm;
+
+static cl::opt<bool> ShowSpillMessageVec(
+  "show-spill-message-vec",
+  cl::init(false),
+  cl::desc("Enable diagnostic message for spill/restore of vector or vector mask registers."),
+  cl::Hidden);
 
 using namespace llvm;
 
@@ -49,7 +58,8 @@ unsigned VEInstrInfo::isLoadFromStackSlot(const MachineInstr &MI,
   if (MI.getOpcode() == VE::LDSri || MI.getOpcode() == VE::LDUri ||
       MI.getOpcode() == VE::LDLri || MI.getOpcode() == VE::LDLUri ||
       MI.getOpcode() == VE::LD2Bri || MI.getOpcode() == VE::LD2BUri ||
-      MI.getOpcode() == VE::LD1Bri || MI.getOpcode() == VE::LD1BUri) {
+      MI.getOpcode() == VE::LD1Bri || MI.getOpcode() == VE::LD1BUri ||
+      MI.getOpcode() == VE::LDQri) {
     if (MI.getOperand(1).isFI() && MI.getOperand(2).isImm() &&
         MI.getOperand(2).getImm() == 0) {
       FrameIndex = MI.getOperand(1).getIndex();
@@ -66,9 +76,9 @@ unsigned VEInstrInfo::isLoadFromStackSlot(const MachineInstr &MI,
 /// any side effects other than storing to the stack slot.
 unsigned VEInstrInfo::isStoreToStackSlot(const MachineInstr &MI,
                                             int &FrameIndex) const {
-  if (MI.getOpcode() == VE::STSri || MI.getOpcode() == VE::STUri ||
-      MI.getOpcode() == VE::STLri || MI.getOpcode() == VE::ST2Bri ||
-      MI.getOpcode() == VE::ST1Bri) {
+  if (MI.getOpcode() == VE::STSri  || MI.getOpcode() == VE::STUri ||
+      MI.getOpcode() == VE::STLri  || MI.getOpcode() == VE::ST2Bri ||
+      MI.getOpcode() == VE::ST1Bri || MI.getOpcode() == VE::STQri) {
     if (MI.getOperand(0).isFI() && MI.getOperand(1).isImm() &&
         MI.getOperand(1).getImm() == 0) {
       FrameIndex = MI.getOperand(0).getIndex();
@@ -457,6 +467,16 @@ storeRegToStackSlot(MachineBasicBlock &MBB, MachineBasicBlock::iterator I,
   DebugLoc DL;
   if (I != MBB.end()) DL = I->getDebugLoc();
 
+  if (ShowSpillMessageVec) {
+    if (RC == &VE::V64RegClass) {
+      dbgs() << "spill " << printReg(SrcReg, TRI) << " - V64\n";
+    } else if (RC == &VE::VMRegClass) {
+      dbgs() << "spill " << printReg(SrcReg, TRI) << " - VM\n";
+    } else if (VE::VM512RegClass.hasSubClassEq(RC)) {
+      dbgs() << "spill " << printReg(SrcReg, TRI) << " - VM512\n";
+    }
+  }
+
   MachineFunction *MF = MBB.getParent();
   const MachineFrameInfo &MFI = MF->getFrameInfo();
   MachineMemOperand *MMO = MF->getMachineMemOperand(
@@ -473,13 +493,20 @@ storeRegToStackSlot(MachineBasicBlock &MBB, MachineBasicBlock::iterator I,
     BuildMI(MBB, I, DL, get(VE::STUri)).addFrameIndex(FI).addImm(0)
       .addReg(SrcReg, getKillRegState(isKill)).addMemOperand(MMO);
   else if (VE::F128RegClass.hasSubClassEq(RC)) {
-    BuildMI(MBB, I, DL, get(VE::STSri)).addFrameIndex(FI).addImm(8)
-      .addReg(2 * SrcReg, getKillRegState(isKill)).addMemOperand(MMO);
-    BuildMI(MBB, I, DL, get(VE::STSri)).addFrameIndex(FI).addImm(0)
-      .addReg(2 * SrcReg + 1, getKillRegState(isKill)).addMemOperand(MMO);
+    BuildMI(MBB, I, DL, get(VE::STQri)).addFrameIndex(FI).addImm(0)
+      .addReg(SrcReg, getKillRegState(isKill)).addMemOperand(MMO);
+  }
+  else if (RC == &VE::V64RegClass) {
+    // FIXME: use SX16 as a temporary register
+    unsigned BaseReg = VE::SX16;
+    BuildMI(MBB, I, DL, get(VE::LEAasx), BaseReg).addFrameIndex(FI).addImm(0)
+      .addMemOperand(MMO);
+    BuildMI(MBB, I, DL, get(VE::VSTir))
+      .addReg(SrcReg, getKillRegState(isKill)).addImm(8)
+      .addReg(BaseReg, getKillRegState(true));
   }
   else
-    llvm_unreachable("Can't store this register to stack slot");
+    report_fatal_error("Can't store this register to stack slot");
 }
 
 void VEInstrInfo::
@@ -489,6 +516,16 @@ loadRegFromStackSlot(MachineBasicBlock &MBB, MachineBasicBlock::iterator I,
                      const TargetRegisterInfo *TRI) const {
   DebugLoc DL;
   if (I != MBB.end()) DL = I->getDebugLoc();
+
+  if (ShowSpillMessageVec) {
+    if (RC == &VE::V64RegClass) {
+      dbgs() << "restore " << printReg(DestReg, TRI) << " - V64\n";
+    } else if (RC == &VE::VMRegClass) {
+      dbgs() << "restore " << printReg(DestReg, TRI) << " - VM\n";
+    } else if (VE::VM512RegClass.hasSubClassEq(RC)) {
+      dbgs() << "restore " << printReg(DestReg, TRI) << " - VM512\n";
+    }
+  }
 
   MachineFunction *MF = MBB.getParent();
   const MachineFrameInfo &MFI = MF->getFrameInfo();
@@ -507,15 +544,20 @@ loadRegFromStackSlot(MachineBasicBlock &MBB, MachineBasicBlock::iterator I,
   else if (RC == &VE::F32RegClass)
     BuildMI(MBB, I, DL, get(VE::LDUri), DestReg).addFrameIndex(FI).addImm(0)
       .addMemOperand(MMO);
-
   else if (VE::F128RegClass.hasSubClassEq(RC)) {
-    BuildMI(MBB, I, DL, get(VE::LDSri), 2 * DestReg).addFrameIndex(FI).addImm(8)
-      .addMemOperand(MMO);
-    BuildMI(MBB, I, DL, get(VE::LDSri), 2 * DestReg + 1).addFrameIndex(FI).addImm(0)
+    BuildMI(MBB, I, DL, get(VE::LDQri), DestReg).addFrameIndex(FI).addImm(0)
       .addMemOperand(MMO);
   }
+  else if (RC == &VE::V64RegClass) {
+    // FIXME: use SX16 as a temporary register
+    unsigned BaseReg = VE::SX16;
+    BuildMI(MBB, I, DL, get(VE::LEAasx), BaseReg).addFrameIndex(FI).addImm(0)
+      .addMemOperand(MMO);
+    BuildMI(MBB, I, DL, get(VE::VLDir), DestReg).addImm(8)
+      .addReg(BaseReg, getKillRegState(true));
+  }
   else
-    llvm_unreachable("Can't load this register from stack slot");
+    report_fatal_error("Can't load this register from stack slot");
 }
 
 unsigned VEInstrInfo::getGlobalBaseReg(MachineFunction *MF) const

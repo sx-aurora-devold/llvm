@@ -45,6 +45,20 @@ class RV2<bits<8>opVal, dag outs, dag ins, string asmstr, list<dag> pattern,
     let vw = 0;
 }
 
+multiclass RV2vm<string opcStr, bits<8> opc, RegisterClass MaskRC> {
+  def v : RV2<opc, (outs V64:$vx), (ins V64:$vy), 
+    !strconcat(opcStr, " $vx,$vy"), []> {
+      let m = 0;
+      let sy = 0;
+    }
+
+  def vm : RV2<opc, (outs V64:$vx), (ins V64:$vy, MaskRC:$vm, V64:$vd), 
+    !strconcat(opcStr, " $vx,$vy,$vm"), []> {
+      let sy = 0;
+      let Constraints = "$vx = $vm";
+    }
+}
+
 class RV3<bits<8>opVal, dag outs, dag ins, string asmstr, list<dag> pattern,
         InstrItinClass itin = NoItinerary> 
       : RV<opVal, outs, ins, asmstr, pattern, itin> {
@@ -475,6 +489,10 @@ let cx = 0, sx = 0, cy = 1, cz = 0, sz = 0 in
 def LVSr : RR<0x9E, (outs I64:$sx), (ins V64:$vx, I64:$sy),
   "lvs ${sx},${vx}(${sy})", []>;
 
+let cx = 0, sx = 0, cy = 0, cz = 0, sz = 0 in
+def LVSi : RR<0x9E, (outs I64:$sx), (ins V64:$vx, simm7Op64:$sy),
+  "lvs ${sx},${vx}(${sy})", []>;
+
 let cx = 0, sx = 0, cy = 1, cz = 0, sz = 0, isCodeGenOnly = 1 in
 def LVSi64r : RR<0x9E, (outs I64:$sx), (ins V64:$vx, I32:$sy),
   "lvs ${sx},${vx}(${sy})", []>;
@@ -769,6 +787,11 @@ def VSFAim : RV<0xD7, (outs V64:$vx), (ins V64:$vz, I64:$sy, I64:$sz, VM:$vm, V6
 
 // 5.3.2.11 Vector Floating-Point Arithmetic Operation Instructions
 
+multiclass VFSQRTm<string opcStr, bits<8> opc> {
+  let cx = 0 in defm d : RV2vm<opcStr # ".d", opc, VM>;
+  let cx = 1 in defm s : RV2vm<opcStr # ".s", opc, VM>;
+}
+
 multiclass VRCPm<string opcStr, bits<8> opc> {
   def dv : RV2<opc, (outs V64:$vx), (ins V64:$vy), 
     !strconcat(opcStr, ".d $vx,$vy"), []> {
@@ -792,11 +815,20 @@ multiclass VRCPm<string opcStr, bits<8> opc> {
   }
 }
 
+multiclass VRSQRTm<string opcStr, bits<8> opc> {
+  let cx = 0, cx2 = 0 in defm d : RV2vm<opcStr # ".d", opc, VM>;
+  let cx = 1, cx2 = 0 in defm s : RV2vm<opcStr # ".s", opc, VM>;
+  let cx = 1, cx2 = 1 in defm p : RV2vm<"p" # opcStr, opc, VM>;
+  let cx = 0, cx2 = 0, cs2 = 1 in defm dnex : RV2vm<opcStr # ".d.nex", opc, VM>;
+  let cx = 1, cx2 = 0, cs2 = 1 in defm snex : RV2vm<opcStr # ".s.nex", opc, VM>;
+  let cx = 1, cx2 = 1, cs2 = 1 in defm pnex : RV2vm<"p" # opcStr # ".nex", opc, VM>;
+}
+
 defm VFAD : RVDSPm<"vfadd", 0xCC>;
 defm VFSB : RVDSPm<"vfsub", 0xDC>;
 defm VFMP : RVDSPm<"vfmul", 0xCD>;
 defm VFDV : RVDSPm<"vfdiv", 0xDD>;
-// VFSQRT
+defm VFSQRT : VFSQRTm<"vfsqrt", 0xED>;
 defm VFCP : RVDSPm<"vfcmp", 0xFC>;
 let cs2 = 0 in defm VFCMa : RVDSPm<"vfmax", 0xBD>;
 let cs2 = 1 in defm VFCMi : RVDSPm<"vfmin", 0xBD>;
@@ -805,7 +837,7 @@ defm VFMSB : RV4DSPm<"vfmsb", 0xF2>;
 defm VFNMAD : RV4DSPm<"vfnmad", 0xE3>;
 defm VFNMSB : RV4DSPm<"vfnmsb", 0xF3>;
 defm VRCP : VRCPm<"vrcp", 0xE1>;
-// VRSQRT
+defm VRSQRT : VRSQRTm<"vrsqrt", 0xF1>;
 // VFIX
 // VFIXX
 // VFLTX
@@ -1075,38 +1107,3 @@ def LVL : RR<0xBF, (outs), (ins I32:$sy), "lvl $sy", []>;
 
 let cx = 0, sx = 0, cy = 0, cz = 0, sz = 0, Defs = [VL] in
 def SVL : RR<0x2F, (outs I32:$sx), (ins), "svl $sx", []>;
-
-// Pattern Matchings for Vector Intrinsics
-
-def : Pat<(int_ve_lvl i32:$sy), (LVL i32:$sy)>;
-
-def : Pat<(i64 (int_ve_pack_f32p ADDRri:$addr0, ADDRri:$addr1)),
-          (ORrr (INSERT_SUBREG (i64 (IMPLICIT_DEF)),
-                               (LDUri MEMri:$addr0), sub_f32),
-                (INSERT_SUBREG (i64 (IMPLICIT_DEF)),
-                               (LDLUri MEMri:$addr1), sub_i32))>;
-
-def : Pat<(i64 (int_ve_pack_f32a ADDRri:$addr)),
-          (i64 (MPYrr
-            (INSERT_SUBREG (i64 (IMPLICIT_DEF)), (LDLUri MEMri:$addr), sub_i32),
-            (LEASLrzi (ANDrm0 (LEAzzi (LO32 (i64 0x0000000100000001))), 32),
-                      (HI32 (i64 0x0000000100000001)))))>;
-
-// intrinsic patterns
-def : Pat<(v4i64 (int_ve_extract_vm512u VM512:$vm)),
-          (v4i64 (EXTRACT_SUBREG VM512:$vm, sub_vm_odd))>;
-
-def : Pat<(v4i64 (int_ve_extract_vm512l VM512:$vm)),
-          (v4i64 (EXTRACT_SUBREG VM512:$vm, sub_vm_even))>;
-
-def : Pat<(v8i64 (int_ve_insert_vm512u VM512:$vmx, VM:$vmy)),
-          (v8i64 (INSERT_SUBREG VM512:$vmx, VM:$vmy, sub_vm_odd))>;
-
-def : Pat<(v8i64 (int_ve_insert_vm512l VM512:$vmx, VM:$vmy)),
-          (v8i64 (INSERT_SUBREG VM512:$vmx, VM:$vmy, sub_vm_even))>;
-
-include "VEInstrIntrinsic.td"
-
-// generic instruction patterns
-include "VEInstrPatternsVector.td"
-

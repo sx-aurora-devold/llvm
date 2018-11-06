@@ -92,6 +92,14 @@ bool EVT::isExtended2048BitVector() const {
   return isExtendedVector() && getExtendedSizeInBits() == 2048;
 }
 
+bool EVT::isExtended8192BitVector() const {
+  return isExtendedVector() && getExtendedSizeInBits() == 8192;
+}
+
+bool EVT::isExtended16384BitVector() const {
+  return isExtendedVector() && getExtendedSizeInBits() == 16384;
+}
+
 EVT EVT::getExtendedVectorElementType() const {
   assert(isExtended() && "Type is not extended!");
   return EVT::getEVT(cast<VectorType>(LLVMTy)->getElementType());

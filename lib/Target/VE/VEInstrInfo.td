@@ -29,6 +29,7 @@ def simm7   : PatLeaf<(imm), [{ return isInt<7>(N->getSExtValue()); }]>;
 def simm32  : PatLeaf<(imm), [{ return isInt<32>(N->getSExtValue()); }]>;
 def uimm32  : PatLeaf<(imm), [{ return isUInt<32>(N->getZExtValue()); }]>;
 def uimm6   : PatLeaf<(imm), [{ return isUInt<6>(N->getZExtValue()); }]>;
+def uimm7   : PatLeaf<(imm), [{ return isUInt<7>(N->getZExtValue()); }]>;
 def zero    : PatLeaf<(imm), [{ return N->getSExtValue() == 0; }]>;
 
 def CCSIOp : PatLeaf<(cond), [{
@@ -250,6 +251,17 @@ def VEmin : SDNode<"VEISD::MIN", SDTIntBinOp>;
 def VEfmax : SDNode<"VEISD::FMAX", SDTFPBinOp>;
 def VEfmin : SDNode<"VEISD::FMIN", SDTFPBinOp>;
 
+def VEeh_sjlj_setjmp: SDNode<"VEISD::EH_SJLJ_SETJMP",
+                             SDTypeProfile<1, 1, [SDTCisInt<0>,
+                                                  SDTCisPtrTy<1>]>,
+                             [SDNPHasChain, SDNPSideEffect]>;
+def VEeh_sjlj_longjmp: SDNode<"VEISD::EH_SJLJ_LONGJMP",
+                              SDTypeProfile<0, 1, [SDTCisPtrTy<0>]>,
+                              [SDNPHasChain, SDNPSideEffect]>;
+def VEeh_sjlj_setup_dispatch: SDNode<"VEISD::EH_SJLJ_SETUP_DISPATCH",
+                                     SDTypeProfile<0, 0, []>,
+                                     [SDNPHasChain, SDNPSideEffect]>;
+
 // GETFUNPLT for PIC
 def GetFunPLT : SDNode<"VEISD::GETFUNPLT", SDTIntUnaryOp>;
 
@@ -357,18 +369,21 @@ multiclass RMNDm<string opcStr, bits<8>opc, SDNode OpNode,
     !strconcat(opcStr, " $sx, ${imm32}($sy, ${sz})"), []> {
     let cy = 1;
     let cz = 1;
+    let hasSideEffects = 0;
   }
   def rii : RM<
     opc, (outs RC:$sx), (ins RC:$sz, immOp:$sy, immOp2:$imm32),
     !strconcat(opcStr, " $sx, ${imm32}($sy, ${sz})"), []> {
     let cy = 0;
     let cz = 1;
+    let hasSideEffects = 0;
   }
   def rzi : RM<
     opc, (outs RC:$sx), (ins RC:$sz, immOp2:$imm32),
     !strconcat(opcStr, " $sx, ${imm32}(${sz})"), []> {
     let cy = 0;
     let sy = 0;
+    let hasSideEffects = 0;
     let cz = 1;
   }
   def zii : RM<
@@ -377,6 +392,7 @@ multiclass RMNDm<string opcStr, bits<8>opc, SDNode OpNode,
     let cy = 0;
     let cz = 0;
     let sz = 0;
+    let hasSideEffects = 0;
   }
   def zzi : RM<
     opc, (outs RC:$sx), (ins immOp2:$imm32),
@@ -385,6 +401,7 @@ multiclass RMNDm<string opcStr, bits<8>opc, SDNode OpNode,
     let sy = 0;
     let cz = 0;
     let sz = 0;
+    let hasSideEffects = 0;
   }
 }
 
@@ -1165,7 +1182,8 @@ let cz = 0, sz = 0 in {
 
 // Load and Store instructions
 // As 1st step, only uses sz and imm32 to represent $addr
-let cy = 0, sy = 0, cz = 1, mayLoad = 1 in {
+let mayLoad = 1 in {
+let cy = 0, sy = 0, cz = 1 in {
 let cx = 0 in
 def LDSri : RM<
     0x01, (outs I64:$sx), (ins MEMri:$addr),
@@ -1207,8 +1225,14 @@ def LD1BUri : RM<
     "ld1b.zx $sx, $addr",
     [(set i32:$sx, (zextloadi8 ADDRri:$addr))]>;
 }
+def LDQri : Pseudo<
+    (outs F128:$sx), (ins MEMri:$addr),
+    "# pseudo ldq $sx, $addr",
+    [(set f128:$sx, (load ADDRri:$addr))]>;
+}
 
-let cx = 0, cy = 0, sy = 0, cz = 1, mayStore = 1 in {
+let mayStore = 1 in {
+let cx = 0, cy = 0, sy = 0, cz = 1 in {
 def STSri : RM<
     0x11, (outs), (ins MEMri:$addr, I64:$sx),
     "st $sx, $addr",
@@ -1229,6 +1253,11 @@ def ST1Bri : RM<
     0x15, (outs), (ins MEMri:$addr, I32:$sx),
     "st1b $sx, $addr",
     [(truncstorei8 i32:$sx, ADDRri:$addr)]>;
+}
+def STQri : Pseudo<
+    (outs), (ins MEMri:$addr, F128:$sx),
+    "# pseudo stq $sx, $addr",
+    [(store f128:$sx, ADDRri:$addr)]>;
 }
 
 def : Pat<(f64 (load ADDRri:$addr)), (LDSri ADDRri:$addr)>;
@@ -1416,6 +1445,24 @@ def SVOB : RR<0x30, (outs), (ins), "svob", []>;
 def MEMBARRIER : Pseudo<(outs), (ins), "# MEMBARRIER",
                        [(MemBarrier)] >;
 
+//===----------------------------------------------------------------------===//
+// SJLJ Exception handling intrinsics
+//===----------------------------------------------------------------------===//
+
+let hasSideEffects = 1, isBarrier = 1, isCodeGenOnly = 1 in {
+  def EH_SjLj_SetJmp  : Pseudo<(outs I32:$dst), (ins I64:$buf),
+                               "# EH_SJLJ_SETJMP",
+                               [(set I32:$dst, (VEeh_sjlj_setjmp I64:$buf))]>;
+  let isTerminator = 1 in {
+  def EH_SjLj_LongJmp : Pseudo<(outs), (ins I64:$buf),
+                               "# EH_SJLJ_LONGJMP",
+                               [(VEeh_sjlj_longjmp I64:$buf)]>;
+  }
+}
+
+let isBarrier = 1, hasSideEffects = 1 in
+  def EH_SjLj_Setup : Pseudo<(outs), (ins), "# EH_SJLJ_SETUP_DISPATCH",
+                             [(VEeh_sjlj_setup_dispatch)]>;
 
 //===----------------------------------------------------------------------===//
 // Instructions for CodeGenOnly
@@ -1602,6 +1649,11 @@ def : Pat<(VElo texternalsym:$in), (ANDrm0 (LEAzzi texternalsym:$in), 32)>;
 def : Pat<(add (VEhi texternalsym:$in1), (VElo texternalsym:$in2)),
           (LEASLrzi (ANDrm0 (LEAzzi texternalsym:$in2), 32),
                     (texternalsym:$in1))>;
+
+// Address store of mcsym
+def : Pat<(store (i64 mcsym:$src), ADDRri:$dst),
+          (STSri ADDRri:$dst, (LEASLrzi (ANDrm0 (LEAzzi mcsym:$src), 32),
+                                        (mcsym:$src)))>;
 
 // Calls
 def : Pat<(call tglobaladdr:$dst),
@@ -2054,4 +2106,14 @@ def : Pat<(i32 (and i32:$lhs, 0xffff)),
 def : Pat<(i32 (and i32:$lhs, 0xffffffff)),
           (AND32rm0 $lhs, 32)>;
 
+// vector instruction fragments (glue beteen instruction and intrinsics)
+include "VEInstrFragmentsVec.td"
+
+// vector instructions
 include "VEInstrVec.td"
+
+// vector intrinsic patterns
+include "VEInstrIntrinsic.td"
+
+// generic vector instruction patterns
+include "VEInstrPatternsVec.td"

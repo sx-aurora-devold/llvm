@@ -41,7 +41,7 @@ def v16i1  : ValueType<16,  18>;   //  16 x i1 vector value
 def v32i1  : ValueType<32 , 19>;   //  32 x i1 vector value
 def v64i1  : ValueType<64 , 20>;   //  64 x i1 vector value
 def v128i1 : ValueType<128, 21>;   // 128 x i1 vector value
-def v256i1 : ValueType<256, 22>;   // 512 x i1 vector value
+def v256i1 : ValueType<256, 22>;   // 256 x i1 vector value
 def v512i1 : ValueType<512, 23>;   // 512 x i1 vector value
 def v1024i1: ValueType<1024,24>;   //1024 x i1 vector value
 

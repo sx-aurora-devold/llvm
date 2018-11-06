@@ -627,7 +627,7 @@ class ManualInstPrinter:
         print line
 
 class HtmlManualPrinter(ManualInstPrinter):
-    def printAll(self, T):
+    def printAll(self, T, opt_no_link):
         idx = 0
         for s in T.sections:
             print("<a href=\"#sec{}\">{}</a><br>".format(idx, s.name))
@@ -649,7 +649,10 @@ class HtmlManualPrinter(ManualInstPrinter):
                     rowspan[inst] += 1
                 else:
                     rowspan[inst] = 1
-                asm = "<a href=\"Aurora-as-manual-v3.2.pdf#page={}\">{}</a>".format(s.page, I.asm())
+                if opt_no_link:
+                    asm = "{}".format(I.asm())
+                else:
+                    asm = "<a href=\"Aurora-as-manual-v3.2.pdf#page={}\">{}</a>".format(s.page, I.asm())
                 #tmp.append([inst, func, I.asm(), expr])
                 tmp.append([inst, func, asm, expr])
 
@@ -1184,7 +1187,7 @@ T.Inst3f(0xDD, "vfdiv", "VFDV", "{0} = {1} / {2}", False)
 T.add(Inst(None, None, None, "vfdivsA_vvv", [VX(T_f32)], [VY(T_f32), VZ(T_f32)], False, "{0} = {1} / {2}"))
 T.add(Inst(None, None, None, "vfdivsA_vsv", [VX(T_f32)], [SY(T_f32), VZ(T_f32)], False, "{0} = {1} / {2}"))
 T.add(Inst(None, None, None, "pvfdivA_vvv", [VX(T_f32)], [VY(T_f32), VZ(T_f32)], False, "{0} = {1} / {2}"))
-T.NoImpl("VFSQRT")
+T.Inst2f(0xED, "vfsqrt", "VFSQRT", "{0} = std::sqrt({1})", False)
 T.Inst3f(0xFC, "vfcmp", "VFCP", "{0} = compare({1}, {2})")
 T.Inst3f(0xBD, "vfmax", "VFCMa", "{0} = max({1}, {2})")
 T.Inst3f(0xBD, "vfmin", "VFCMi", "{0} = min({1}, {2})")
@@ -1193,7 +1196,8 @@ T.Inst4f(0xF2, "vfmsb", "VFMSB", "{0} = {2} * {3} - {1}")
 T.Inst4f(0xE3, "vfnmad", "VFNMAD", "{0} =  - ({2} * {3} + {1})")
 T.Inst4f(0xF3, "vfnmsb", "VFNMSB", "{0} =  - ({2} * {3} - {1})")
 T.Inst2f(0xE1, "vrcp", "VRCP", "{0} = 1.0f / {1}")
-T.NoImpl("VRSQRT")
+T.Inst2f(0xF1, "vrsqrt", "VRSQRT", "{0} = 1.0f / std::sqrt({1})", True)
+T.NoImpl("VRSQRTnex")
 T.NoImpl("VFIX")
 T.NoImpl("VFIXX")
 T.InstX(0xF8, "VFLTd", "vcvt.d.w", [[VX(T_f64), VY(T_i32)]], "{0} = (double){1}")
@@ -1309,6 +1313,7 @@ parser.add_argument('-f', dest="opt_filter", action="store")
 parser.add_argument('-m', dest="opt_manual", action="store_true")
 parser.add_argument('-a', dest="opt_all", action="store_true")
 parser.add_argument('--html', dest="opt_html", action="store_true")
+parser.add_argument('--html-no-link', action="store_true")
 parser.add_argument('--mktest', dest="opt_mktest", action="store_true")
 args, others = parser.parse_known_args()
 
@@ -1367,7 +1372,9 @@ if args.opt_reference:
             print TestGenerator().reference(i)
     print '}'
 if args.opt_html:
-    HtmlManualPrinter().printAll(T)
+    HtmlManualPrinter().printAll(T, False)
+if args.html_no_link:
+    HtmlManualPrinter().printAll(T, True)
 if args.opt_mktest:
     gen_mktest(insts)
 
