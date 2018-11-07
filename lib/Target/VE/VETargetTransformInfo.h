@@ -60,6 +60,10 @@ public:
 
   unsigned getMinVectorRegisterBitWidth() const { return 256*64; }
 
+  bool isLegalMaskedGather(Type *DataType) {
+      return true;
+  };
+
 };
 
 }

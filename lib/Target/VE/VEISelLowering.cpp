@@ -56,6 +56,58 @@ VETargetLowering::CanLowerReturn(CallingConv::ID CallConv, MachineFunction &MF,
 }
 
 SDValue
+VETargetLowering::LowerMGATHER(SDValue Op, SelectionDAG &DAG) const {
+  MaskedGatherSDNode *N = cast<MaskedGatherSDNode>(Op.getNode());
+  SDLoc dl(Op);
+
+  MVT VT = Op.getSimpleValueType();
+
+  SDValue Index = N->getIndex();
+  SDValue Mask = N->getMask();
+  SDValue PassThru = N->getPassThru();
+  SDValue BasePtr = N->getBasePtr();
+  SDValue Chain = N->getChain();
+
+  MVT IndexVT = Index.getSimpleValueType();
+  MVT MaskVT = Mask.getSimpleValueType();
+  MVT BasePtrVT = BasePtr.getSimpleValueType();
+
+  // vindex = vindex + baseptr;
+  SDValue BaseBroadcast = DAG.getNode(VEISD::VEC_BROADCAST, dl, IndexVT, {BasePtr});
+  SDValue addresses = DAG.getNode(ISD::ADD, dl, IndexVT, {BaseBroadcast, Index});
+
+  // TODO: vmx = svm (mask);
+  //Mask.dumpr(&DAG);
+  if (Mask.getOpcode() != ISD::BUILD_VECTOR || Mask.getNumOperands() != 256) {
+    dbgs() << "Cannot handle gathers with complex masks.\n";
+    return SDValue();
+  }
+  for (unsigned i = 0; i < 256; i++) {
+    const SDValue Operand = Mask.getOperand(i);
+    if (Operand.getOpcode() != ISD::Constant) {
+      dbgs() << "Cannot handle gather masks with complex elements.\n";
+      return SDValue();
+    }
+    if (Mask.getConstantOperandVal(i) != 1) {
+      dbgs() << "Cannot handle gather masks with elements != 1.\n";
+      return SDValue();
+    }
+  }
+
+  // vt = vgt (vindex, vmx, cs=0, sx=0, sy=0, sw=0);
+  SDValue load = DAG.getNode(VEISD::VEC_GATHER, dl, VT, {addresses});
+
+  // TODO: merge (vt, default, vmx);
+  //PassThru.dumpr(&DAG);
+  // We can safely ignore PassThru right now, the mask is guaranteed to be constant 1s.
+
+  //load.dumpr(&DAG);
+  // FIXME: This chain handling is most likely not correct!
+  SDValue Ops[2] = {load, Chain};
+  return DAG.getMergeValues(Ops, dl);
+}
+
+SDValue
 VETargetLowering::LowerBuildVector(SDValue Chain, SelectionDAG &DAG) const {
   auto & bvNode = *cast<BuildVectorSDNode>(Chain);
 
@@ -969,6 +1021,10 @@ VETargetLowering::VETargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::MUL,   VT, Legal);
     setOperationAction(ISD::SDIV,  VT, Legal);
     setOperationAction(ISD::UDIV,  VT, Legal);
+
+    setOperationAction(ISD::SHL,   VT, Legal);
+
+    setOperationAction(ISD::MGATHER,   VT, Custom);
   }
 
   // VE has no packed MUL, SDIV, or UDIV operations.
@@ -1094,6 +1150,7 @@ const char *VETargetLowering::getTargetNodeName(unsigned Opcode) const {
   case VEISD::TLS_CALL:        return "VEISD::TLS_CALL";
   case VEISD::VEC_BROADCAST:   return "VEISD::VEC_BROADCAST";
   case VEISD::VEC_SEQ:         return "VEISD::VEC_SEQ";
+  case VEISD::VEC_GATHER:      return "VEISD::VEC_GATHER";
   case VEISD::Wrapper:         return "VEISD::Wrapper";
   case VEISD::INT_LVM:         return "VEISD::INT_LVM";
   case VEISD::INT_SVM:         return "VEISD::INT_SVM";
@@ -2470,6 +2527,8 @@ LowerOperation(SDValue Op, SelectionDAG &DAG) const {
   case ISD::BUILD_VECTOR:       return LowerBuildVector(Op, DAG);
   case ISD::INSERT_VECTOR_ELT:  return LowerINSERT_VECTOR_ELT(Op, DAG);
   case ISD::EXTRACT_VECTOR_ELT: return LowerEXTRACT_VECTOR_ELT(Op, DAG);
+
+  case ISD::MGATHER:            return LowerMGATHER(Op, DAG);
   }
 }
 
