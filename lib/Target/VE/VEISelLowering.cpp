@@ -56,17 +56,30 @@ VETargetLowering::CanLowerReturn(CallingConv::ID CallConv, MachineFunction &MF,
 }
 
 SDValue
-VETargetLowering::LowerMGATHER(SDValue Op, SelectionDAG &DAG) const {
-  MaskedGatherSDNode *N = cast<MaskedGatherSDNode>(Op.getNode());
+VETargetLowering::LowerMGATHER_MSCATTER(SDValue Op, SelectionDAG &DAG) const {
   SDLoc dl(Op);
+  //Op.dumpr(&DAG);
 
-  MVT VT = Op.getSimpleValueType();
+  MaskedGatherScatterSDNode *N = cast<MaskedGatherScatterSDNode>(Op.getNode());
 
   SDValue Index = N->getIndex();
-  SDValue Mask = N->getMask();
-  SDValue PassThru = N->getPassThru();
   SDValue BasePtr = N->getBasePtr();
+  SDValue Mask = N->getMask();
   SDValue Chain = N->getChain();
+
+  SDValue PassThru;
+  SDValue Source;
+
+  if (Op.getOpcode() == ISD::MGATHER) {
+    MaskedGatherSDNode *N = cast<MaskedGatherSDNode>(Op.getNode());
+    PassThru = N->getPassThru();
+  } else if (Op.getOpcode() == ISD::MSCATTER) {
+    MaskedScatterSDNode *N = cast<MaskedScatterSDNode>(Op.getNode());
+    Source = N->getValue();
+  } else {
+    dbgs() << "wtf?\n";
+    return SDValue();
+  }
 
   MVT IndexVT = Index.getSimpleValueType();
   MVT MaskVT = Mask.getSimpleValueType();
@@ -94,17 +107,21 @@ VETargetLowering::LowerMGATHER(SDValue Op, SelectionDAG &DAG) const {
     }
   }
 
-  // vt = vgt (vindex, vmx, cs=0, sx=0, sy=0, sw=0);
-  SDValue load = DAG.getNode(VEISD::VEC_GATHER, dl, VT, {addresses});
+  if (Op.getOpcode() == ISD::MGATHER) {
+    // vt = vgt (vindex, vmx, cs=0, sx=0, sy=0, sw=0);
+    SDValue load = DAG.getNode(VEISD::VEC_GATHER, dl, Op.getNode()->getVTList(), {Chain, addresses});
+    //load.dumpr(&DAG);
 
-  // TODO: merge (vt, default, vmx);
-  //PassThru.dumpr(&DAG);
-  // We can safely ignore PassThru right now, the mask is guaranteed to be constant 1s.
+    // TODO: merge (vt, default, vmx);
+    //PassThru.dumpr(&DAG);
+    // We can safely ignore PassThru right now, the mask is guaranteed to be constant 1s.
 
-  //load.dumpr(&DAG);
-  // FIXME: This chain handling is most likely not correct!
-  SDValue Ops[2] = {load, Chain};
-  return DAG.getMergeValues(Ops, dl);
+    return load;
+  } else {
+    SDValue store = DAG.getNode(VEISD::VEC_SCATTER, dl, Op.getNode()->getVTList(), {Chain, Source, addresses});
+    //store.dumpr(&DAG);
+    return store;
+  }
 }
 
 SDValue
@@ -1024,6 +1041,7 @@ VETargetLowering::VETargetLowering(const TargetMachine &TM,
 
     setOperationAction(ISD::SHL,   VT, Legal);
 
+    setOperationAction(ISD::MSCATTER,   VT, Custom);
     setOperationAction(ISD::MGATHER,   VT, Custom);
   }
 
@@ -1150,6 +1168,7 @@ const char *VETargetLowering::getTargetNodeName(unsigned Opcode) const {
   case VEISD::TLS_CALL:        return "VEISD::TLS_CALL";
   case VEISD::VEC_BROADCAST:   return "VEISD::VEC_BROADCAST";
   case VEISD::VEC_SEQ:         return "VEISD::VEC_SEQ";
+  case VEISD::VEC_SCATTER:     return "VEISD::VEC_SCATTER";
   case VEISD::VEC_GATHER:      return "VEISD::VEC_GATHER";
   case VEISD::Wrapper:         return "VEISD::Wrapper";
   case VEISD::INT_LVM:         return "VEISD::INT_LVM";
@@ -2528,7 +2547,8 @@ LowerOperation(SDValue Op, SelectionDAG &DAG) const {
   case ISD::INSERT_VECTOR_ELT:  return LowerINSERT_VECTOR_ELT(Op, DAG);
   case ISD::EXTRACT_VECTOR_ELT: return LowerEXTRACT_VECTOR_ELT(Op, DAG);
 
-  case ISD::MGATHER:            return LowerMGATHER(Op, DAG);
+  case ISD::MSCATTER:
+  case ISD::MGATHER:            return LowerMGATHER_MSCATTER(Op, DAG);
   }
 }
 

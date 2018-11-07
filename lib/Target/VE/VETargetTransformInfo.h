@@ -64,6 +64,10 @@ public:
       return true;
   };
 
+  bool isLegalMaskedScatter(Type *DataType) {
+      return true;
+  };
+
 };
 
 }

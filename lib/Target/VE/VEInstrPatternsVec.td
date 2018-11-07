@@ -187,17 +187,19 @@ def vec_seq         : SDNode<"VEISD::VEC_SEQ",       SDTypeProfile<1, 1, [SDTCis
 // FIXME: SDTCisEltOfVec<1, 0>]> breaks table-gen (type mismatch)
 def vec_broadcast   : SDNode<"VEISD::VEC_BROADCAST", SDTypeProfile<1, 1, [SDTCisVec<0>]>>;
 
-def vec_gather   : SDNode<"VEISD::VEC_GATHER", SDTypeProfile<1, 1, [SDTCisVec<0>, SDTCisVec<1>]>>;
+def vec_scatter   : SDNode<"VEISD::VEC_SCATTER", SDTypeProfile<0, 2, [SDTCisVec<0>, SDTCisVec<1>]>, [SDNPHasChain, SDNPMayStore, SDNPMemOperand]>;
+def vec_gather   : SDNode<"VEISD::VEC_GATHER", SDTypeProfile<1, 1, [SDTCisVec<0>, SDTCisVec<1>]>, [SDNPHasChain, SDNPMayLoad, SDNPMemOperand]>;
 
 // Shuffle
 // TODO
 
+// Scatter
+def : Pat<(vec_scatter v256i64:$vx, v256i64:$vy), (VSCv v256i64:$vx, v256i64:$vy)>;
+def : Pat<(vec_scatter v256f64:$vx, v256i64:$vy), (VSCv v256f64:$vx, v256i64:$vy)>;
+
 // Gather
 def : Pat<(v256i64 (vec_gather v256i64:$vy)), (VGTv v256i64:$vy)>;
 def : Pat<(v256f64 (vec_gather v256i64:$vy)), (VGTv v256i64:$vy)>;
-
-def : Pat<(v256i64 (vec_gather (v256i64 (vec_broadcast i64:$sy)))), (VGTr i64:$sy)>;
-def : Pat<(v256f64 (vec_gather (v256i64 (vec_broadcast i64:$sy)))), (VGTr i64:$sy)>;
 
 // Broadcast
 def : Pat<(v256f64 (scalar_to_vector f64:$sy)), (VBRDf64r f64:$sy)>;
