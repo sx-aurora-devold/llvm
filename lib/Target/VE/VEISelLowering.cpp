@@ -58,6 +58,7 @@ VETargetLowering::CanLowerReturn(CallingConv::ID CallConv, MachineFunction &MF,
 SDValue
 VETargetLowering::LowerMGATHER_MSCATTER(SDValue Op, SelectionDAG &DAG) const {
   SDLoc dl(Op);
+  //dbgs() << "\nNext Instr:\n";
   //Op.dumpr(&DAG);
 
   MaskedGatherScatterSDNode *N = cast<MaskedGatherScatterSDNode>(Op.getNode());
@@ -87,7 +88,11 @@ VETargetLowering::LowerMGATHER_MSCATTER(SDValue Op, SelectionDAG &DAG) const {
 
   // vindex = vindex + baseptr;
   SDValue BaseBroadcast = DAG.getNode(VEISD::VEC_BROADCAST, dl, IndexVT, {BasePtr});
-  SDValue addresses = DAG.getNode(ISD::ADD, dl, IndexVT, {BaseBroadcast, Index});
+  SDValue ScaleBroadcast = DAG.getNode(VEISD::VEC_BROADCAST, dl, IndexVT, {N->getScale()});
+
+  SDValue index_addr = DAG.getNode(ISD::MUL, dl, IndexVT, {Index, ScaleBroadcast});
+
+  SDValue addresses = DAG.getNode(ISD::ADD, dl, IndexVT, {BaseBroadcast, index_addr});
 
   // TODO: vmx = svm (mask);
   //Mask.dumpr(&DAG);
