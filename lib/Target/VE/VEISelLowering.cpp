@@ -270,8 +270,6 @@ VETargetLowering::LowerBuildVector(SDValue Chain, SelectionDAG &DAG) const {
 
       SDValue modulo = DAG.getNode(ISD::AND, DL, Chain.getSimpleValueType(), {sequence, modulobroadcast});
 
-      modulo.dumpr(&DAG);
-
       return modulo;
     }
   }
