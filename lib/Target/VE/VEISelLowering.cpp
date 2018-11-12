@@ -173,6 +173,7 @@ VETargetLowering::LowerBuildVector(SDValue Chain, SelectionDAG &DAG) const {
   // identify a constant stride vector
   bool hasConstantStride = true;
   bool hasBlockStride = false;
+  bool hasBlockStride2 = false;
   bool firstStride = true;
   int64_t blockLength = 0;
   int64_t stride = 0;
@@ -188,7 +189,10 @@ VETargetLowering::LowerBuildVector(SDValue Chain, SelectionDAG &DAG) const {
     }
 
     if (bvNode.getOperand(i).isUndef()) {
-      lastElemValue += stride;
+      if (hasBlockStride2 && i % blockLength == 0)
+        lastElemValue = 0;
+      else
+        lastElemValue += stride;
       continue;
     }
 
@@ -197,6 +201,7 @@ VETargetLowering::LowerBuildVector(SDValue Chain, SelectionDAG &DAG) const {
     if (!constNumElem) {
       hasConstantStride = false;
       hasBlockStride = false;
+      hasBlockStride2 = false;
       break;
     }
 
@@ -210,11 +215,18 @@ VETargetLowering::LowerBuildVector(SDValue Chain, SelectionDAG &DAG) const {
       firstStride = false;
     } else if (i > first_def) {
       // later stride
+      if (hasBlockStride2 && elemValue == 0 && i % blockLength == 0) {
+        lastElemValue = 0;
+        continue;
+      }
       int64_t thisStride = elemValue - lastElemValue;
       if (thisStride != stride) {
         hasConstantStride = false;
         if (!hasBlockStride && thisStride == 1 && stride == 0 && lastElemValue == 0) {
           hasBlockStride = true;
+          blockLength = i;
+        } else if (!hasBlockStride2 && elemValue == 0 && lastElemValue + 1 == i) {
+          hasBlockStride2 = true;
           blockLength = i;
         } else {
           break;
@@ -228,18 +240,39 @@ VETargetLowering::LowerBuildVector(SDValue Chain, SelectionDAG &DAG) const {
 
   // detected a proper stride pattern
   if (hasConstantStride) {
-    return DAG.getNode(VEISD::VEC_SEQ, DL, Chain.getSimpleValueType(),
-                                  DAG.getConstant(stride, DL, elemTy)); // TODO draw strideTy from elements
+    SDValue seq = DAG.getNode(VEISD::VEC_SEQ, DL, Chain.getSimpleValueType(),
+                                  DAG.getConstant(1, DL, elemTy)); // TODO draw strideTy from elements
+    if (stride == 1)
+      return seq;
+
+    SDValue const_stride = DAG.getNode(VEISD::VEC_BROADCAST, DL, Chain.getSimpleValueType(), DAG.getConstant(stride, DL, elemTy));
+    return DAG.getNode(ISD::MUL, DL, Chain.getSimpleValueType(), {seq, const_stride});
   }
 
   if (hasBlockStride) {
     int64_t blockLengthLog = log2(blockLength);
+
     if (pow(2, blockLengthLog) == blockLength) {
       SDValue sequence = DAG.getNode(VEISD::VEC_SEQ, DL, Chain.getSimpleValueType(), DAG.getConstant(1, DL, elemTy));
       SDValue shiftbroadcast = DAG.getNode(VEISD::VEC_BROADCAST, DL, EVT::getVectorVT(*DAG.getContext(), EVT::getIntegerVT(*DAG.getContext(), 64), 256), DAG.getConstant(blockLengthLog, DL, EVT::getIntegerVT(*DAG.getContext(), 64)));
 
       SDValue shift = DAG.getNode(ISD::SRL, DL, Chain.getSimpleValueType(), {sequence, shiftbroadcast});
       return shift;
+    }
+  }
+
+  if (hasBlockStride2) {
+    int64_t blockLengthLog = log2(blockLength);
+
+    if (pow(2, blockLengthLog) == blockLength) {
+      SDValue sequence = DAG.getNode(VEISD::VEC_SEQ, DL, Chain.getSimpleValueType(), DAG.getConstant(1, DL, elemTy));
+      SDValue modulobroadcast = DAG.getNode(VEISD::VEC_BROADCAST, DL, EVT::getVectorVT(*DAG.getContext(), EVT::getIntegerVT(*DAG.getContext(), 64), 256), DAG.getConstant(blockLength - 1, DL, EVT::getIntegerVT(*DAG.getContext(), 64)));
+
+      SDValue modulo = DAG.getNode(ISD::AND, DL, Chain.getSimpleValueType(), {sequence, modulobroadcast});
+
+      modulo.dumpr(&DAG);
+
+      return modulo;
     }
   }
 
