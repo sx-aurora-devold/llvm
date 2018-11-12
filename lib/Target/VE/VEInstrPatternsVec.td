@@ -317,4 +317,8 @@ def : Pat<(or  v256i64:$vx, v256i64:$vy), (VORv v256i64:$vx, v256i64:$vy)>;
 def : Pat<(xor v256i64:$vx, v256i64:$vy), (VXORv v256i64:$vx, v256i64:$vy)>;
 
 // Shifts
+def : Pat<(shl v256i64:$vx, (v256i64 (vec_broadcast i64:$sy))), (VSLAXr2 v256i64:$vx, i64:$sy)>;
+def : Pat<(srl v256i64:$vx, (v256i64 (vec_broadcast i64:$sy))), (VSRLr2 v256i64:$vx, i64:$sy)>;
+
 def : Pat<(shl v256i64:$vx, v256i64:$vy), (VSLAXv v256i64:$vx, v256i64:$vy)>;
+def : Pat<(srl v256i64:$vx, v256i64:$vy), (VSRLv v256i64:$vx, v256i64:$vy)>;

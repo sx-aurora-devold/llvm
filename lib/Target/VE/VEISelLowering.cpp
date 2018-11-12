@@ -172,12 +172,21 @@ VETargetLowering::LowerBuildVector(SDValue Chain, SelectionDAG &DAG) const {
 
   // identify a constant stride vector
   bool hasConstantStride = true;
+  bool hasBlockStride = false;
   bool firstStride = true;
+  int64_t blockLength = 0;
   int64_t stride = 0;
   int64_t lastElemValue = 0;
   MVT elemTy;
 
   for (unsigned i = 0; i < bvNode.getNumOperands(); ++i) {
+    if (hasBlockStride) {
+      if (i % blockLength == 0)
+        stride = 1;
+      else
+        stride = 0;
+    }
+
     if (bvNode.getOperand(i).isUndef()) {
       lastElemValue += stride;
       continue;
@@ -187,6 +196,7 @@ VETargetLowering::LowerBuildVector(SDValue Chain, SelectionDAG &DAG) const {
     auto * constNumElem = dyn_cast<ConstantSDNode>(bvNode.getOperand(i));
     if (!constNumElem) {
       hasConstantStride = false;
+      hasBlockStride = false;
       break;
     }
 
@@ -203,7 +213,12 @@ VETargetLowering::LowerBuildVector(SDValue Chain, SelectionDAG &DAG) const {
       int64_t thisStride = elemValue - lastElemValue;
       if (thisStride != stride) {
         hasConstantStride = false;
-        break;
+        if (!hasBlockStride && thisStride == 1 && stride == 0 && lastElemValue == 0) {
+          hasBlockStride = true;
+          blockLength = i;
+        } else {
+          break;
+        }
       }
     }
 
@@ -215,6 +230,17 @@ VETargetLowering::LowerBuildVector(SDValue Chain, SelectionDAG &DAG) const {
   if (hasConstantStride) {
     return DAG.getNode(VEISD::VEC_SEQ, DL, Chain.getSimpleValueType(),
                                   DAG.getConstant(stride, DL, elemTy)); // TODO draw strideTy from elements
+  }
+
+  if (hasBlockStride) {
+    int64_t blockLengthLog = log2(blockLength);
+    if (pow(2, blockLengthLog) == blockLength) {
+      SDValue sequence = DAG.getNode(VEISD::VEC_SEQ, DL, Chain.getSimpleValueType(), DAG.getConstant(1, DL, elemTy));
+      SDValue shiftbroadcast = DAG.getNode(VEISD::VEC_BROADCAST, DL, EVT::getVectorVT(*DAG.getContext(), EVT::getIntegerVT(*DAG.getContext(), 64), 256), DAG.getConstant(blockLengthLog, DL, EVT::getIntegerVT(*DAG.getContext(), 64)));
+
+      SDValue shift = DAG.getNode(ISD::SRL, DL, Chain.getSimpleValueType(), {sequence, shiftbroadcast});
+      return shift;
+    }
   }
 
   SDValue newVector = DAG.getNode(VEISD::VEC_BROADCAST, DL, Chain.getSimpleValueType(),
