@@ -1089,7 +1089,7 @@ VETargetLowering::VETargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::CONCAT_VECTORS,     VT, Expand);
     setOperationAction(ISD::INSERT_SUBVECTOR,   VT, Expand);
     setOperationAction(ISD::EXTRACT_SUBVECTOR,  VT, Expand);
-    setOperationAction(ISD::VECTOR_SHUFFLE,     VT, Expand);
+    setOperationAction(ISD::VECTOR_SHUFFLE,     VT, Custom);
 
     setOperationAction(ISD::FADD,  VT, Legal);
     setOperationAction(ISD::FSUB,  VT, Legal);
@@ -1230,6 +1230,7 @@ const char *VETargetLowering::getTargetNodeName(unsigned Opcode) const {
   case VEISD::TLS_CALL:        return "VEISD::TLS_CALL";
   case VEISD::VEC_BROADCAST:   return "VEISD::VEC_BROADCAST";
   case VEISD::VEC_SEQ:         return "VEISD::VEC_SEQ";
+  case VEISD::VEC_VMV:         return "VEISD::VEC_VMV";
   case VEISD::VEC_SCATTER:     return "VEISD::VEC_SCATTER";
   case VEISD::VEC_GATHER:      return "VEISD::VEC_GATHER";
   case VEISD::Wrapper:         return "VEISD::Wrapper";
@@ -2544,6 +2545,95 @@ SDValue VETargetLowering::LowerINSERT_VECTOR_ELT(SDValue Op,
   return SDValue();
 }
 
+SDValue VETargetLowering::LowerSHUFFLE_VECTOR(SDValue Op, SelectionDAG &DAG) const {
+  SDLoc dl(Op);
+  ShuffleVectorSDNode *ShuffleInstr = cast<ShuffleVectorSDNode>(Op.getNode());
+
+  SDValue firstVec = ShuffleInstr->getOperand(0);
+  int firstVecLength = firstVec.getSimpleValueType().getVectorNumElements();
+  SDValue secondVec = ShuffleInstr->getOperand(1);
+  int secondVecLength = secondVec.getSimpleValueType().getVectorNumElements();
+
+  MVT ElementType = Op.getSimpleValueType().getScalarType();
+  int resultSize = Op.getSimpleValueType().getVectorNumElements();
+
+  if (ShuffleInstr->isSplat()) {
+    int index = ShuffleInstr->getSplatIndex();
+    if (index >= firstVecLength) {
+      index -= firstVecLength;
+      SDValue elem = DAG.getNode(ISD::EXTRACT_VECTOR_ELT, dl, ElementType, {secondVec, DAG.getConstant(index, dl, EVT::getIntegerVT(*DAG.getContext(), 64))});
+      return DAG.getNode(VEISD::VEC_BROADCAST, dl, Op.getSimpleValueType(), {elem});
+    } else {
+      SDValue elem = DAG.getNode(ISD::EXTRACT_VECTOR_ELT, dl, ElementType, {firstVec, DAG.getConstant(index, dl, EVT::getIntegerVT(*DAG.getContext(), 64))});
+      return DAG.getNode(VEISD::VEC_BROADCAST, dl, Op.getSimpleValueType(), {elem});
+    }
+  }
+
+  if (firstVecLength != 256 || secondVecLength != 256 || resultSize != 256) {
+    return SDValue();
+  }
+
+  int firstrot = 256;
+  int secondrot = 256;
+  int firstsecond = 256;
+
+  for (int i = 0; i < 256; i++) {
+    int mask_value = ShuffleInstr->getMaskElt(i);
+    if (mask_value < 0)
+      continue;
+    if (mask_value < 256) {
+      if (firstsecond != 256)
+        return SDValue();
+      if (firstrot == 256)
+        firstrot = i - mask_value;
+      else if (firstrot != i - mask_value)
+        return SDValue();
+    } else {
+      if (firstsecond == 256)
+        firstsecond = i;
+      mask_value -= 256;
+      if (secondrot == 256)
+        secondrot = i - mask_value;
+      else if (secondrot != i - mask_value)
+        return SDValue();
+    }
+  }
+
+  SDValue firstrotated = firstrot % 256 != 0 ? DAG.getNode(VEISD::VEC_VMV, dl, firstVec.getSimpleValueType(), {DAG.getConstant(firstrot, dl, EVT::getIntegerVT(*DAG.getContext(), 32)), firstVec}) : firstVec;
+  SDValue secondrotated = secondrot % 256 != 0 ? DAG.getNode(VEISD::VEC_VMV, dl, secondVec.getSimpleValueType(), {DAG.getConstant(secondrot, dl, EVT::getIntegerVT(*DAG.getContext(), 32)), secondVec}) : secondVec;
+
+  EVT i64 = EVT::getIntegerVT(*DAG.getContext(), 64);
+  EVT v256i64 = EVT::getVectorVT(*DAG.getContext(), i64, 256);
+  EVT v256i1 = EVT::getVectorVT(*DAG.getContext(), EVT::getIntegerVT(*DAG.getContext(), 1), 256);
+
+  //TODO: use LVM and SVM instructions!
+  int block = firstsecond / 64;
+  int secondblock = firstsecond % 64;
+
+  SDValue Mask = DAG.getUNDEF(v256i1);
+
+  for (int i = 0; i < block; i++) {
+    //set blocks to all 0s
+    SDValue zero = DAG.getConstant(0, dl, i64);
+    SDValue index = DAG.getConstant(i, dl, i64);
+    Mask = DAG.getNode(VEISD::INT_LVM, dl, v256i1, {Mask, index, zero});
+  }
+
+  SDValue one = DAG.getConstant(0xffffffffffffffff, dl, i64);
+  one = DAG.getNode(ISD::SRL, dl, i64, {one, DAG.getConstant(secondblock, dl, i64)});
+  Mask = DAG.getNode(VEISD::INT_LVM, dl, v256i1, {Mask, DAG.getConstant(block, dl, i64), one});
+
+  for (int i = block + 1; i < 4; i++) {
+    //set blocks to all 1s
+    SDValue one = DAG.getConstant(0xffffffffffffffff, dl, i64);
+    SDValue index = DAG.getConstant(i, dl, i64);
+    Mask = DAG.getNode(VEISD::INT_LVM, dl, v256i1, {Mask, index, one});
+  }
+
+  SDValue returnValue = DAG.getNode(VEISD::INT_VMRG, dl, Op.getSimpleValueType(), {firstrotated, secondrotated, Mask});
+  return returnValue;
+}
+
 SDValue VETargetLowering::LowerEXTRACT_VECTOR_ELT(SDValue Op,
                                                   SelectionDAG &DAG) const {
   assert(Op.getOpcode() == ISD::EXTRACT_VECTOR_ELT && "Unknown opcode!");
@@ -2608,6 +2698,8 @@ LowerOperation(SDValue Op, SelectionDAG &DAG) const {
   case ISD::BUILD_VECTOR:       return LowerBuildVector(Op, DAG);
   case ISD::INSERT_VECTOR_ELT:  return LowerINSERT_VECTOR_ELT(Op, DAG);
   case ISD::EXTRACT_VECTOR_ELT: return LowerEXTRACT_VECTOR_ELT(Op, DAG);
+
+  case ISD::VECTOR_SHUFFLE:     return LowerSHUFFLE_VECTOR(Op, DAG);
 
   case ISD::MSCATTER:
   case ISD::MGATHER:            return LowerMGATHER_MSCATTER(Op, DAG);

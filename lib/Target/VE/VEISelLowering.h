@@ -69,6 +69,8 @@ namespace llvm {
       VEC_BROADCAST,   // a scalar value is broadcast across all vector lanes (Operand 0: the broadcast register)
       VEC_SEQ,         // sequence vector match (Operand 0: the constant stride)
 
+      VEC_VMV,
+
       /// Scatter and gather instructions.
       VEC_GATHER,
       VEC_SCATTER,
@@ -335,6 +337,8 @@ namespace llvm {
     SDValue LowerConstantPool(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerBlockAddress(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerBuildVector(SDValue Op, SelectionDAG &DAG) const;
+
+    SDValue LowerSHUFFLE_VECTOR(SDValue Op, SelectionDAG &DAG) const;
 
     SDValue LowerMGATHER_MSCATTER(SDValue Op, SelectionDAG &DAG) const;
 

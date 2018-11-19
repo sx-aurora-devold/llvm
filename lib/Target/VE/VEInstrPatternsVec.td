@@ -190,6 +190,10 @@ def vec_broadcast   : SDNode<"VEISD::VEC_BROADCAST", SDTypeProfile<1, 1, [SDTCis
 def vec_scatter   : SDNode<"VEISD::VEC_SCATTER", SDTypeProfile<0, 2, [SDTCisVec<0>, SDTCisVec<1>]>, [SDNPHasChain, SDNPMayStore, SDNPMemOperand]>;
 def vec_gather   : SDNode<"VEISD::VEC_GATHER", SDTypeProfile<1, 1, [SDTCisVec<0>, SDTCisVec<1>]>, [SDNPHasChain, SDNPMayLoad, SDNPMemOperand]>;
 
+def vec_rotate   : SDNode<"VEISD::VEC_VMV", SDTypeProfile<1, 2, []>>;
+def : Pat<(v256f64 (vec_rotate i32:$sy, v256f64:$vz)), (VMVr i32:$sy, v256f64:$vz)>;
+def : Pat<(v256f64 (vec_rotate (i32 simm7:$I), v256f64:$vz)), (VMVi (i32 simm7:$I), v256f64:$vz)>;
+
 // Shuffle
 // TODO
 
