@@ -2599,6 +2599,11 @@ SDValue VETargetLowering::LowerSHUFFLE_VECTOR(SDValue Op, SelectionDAG &DAG) con
     }
   }
 
+  if (firstrot < 0)
+    firstrot += 256;
+  if (secondrot < 0)
+    secondrot += 256;
+
   SDValue firstrotated = firstrot % 256 != 0 ? DAG.getNode(VEISD::VEC_VMV, dl, firstVec.getSimpleValueType(), {DAG.getConstant(firstrot, dl, EVT::getIntegerVT(*DAG.getContext(), 32)), firstVec}) : firstVec;
   SDValue secondrotated = secondrot % 256 != 0 ? DAG.getNode(VEISD::VEC_VMV, dl, secondVec.getSimpleValueType(), {DAG.getConstant(secondrot, dl, EVT::getIntegerVT(*DAG.getContext(), 32)), secondVec}) : secondVec;
 
