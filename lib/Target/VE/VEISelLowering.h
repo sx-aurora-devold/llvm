@@ -340,6 +340,8 @@ namespace llvm {
     SDValue LowerBlockAddress(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerBuildVector(SDValue Op, SelectionDAG &DAG) const;
 
+    SDValue LowerBitcast(SDValue Op, SelectionDAG &DAG) const;
+
     SDValue LowerSHUFFLE_VECTOR(SDValue Op, SelectionDAG &DAG) const;
 
     SDValue LowerMGATHER_MSCATTER(SDValue Op, SelectionDAG &DAG) const;

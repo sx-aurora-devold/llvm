@@ -56,6 +56,15 @@ VETargetLowering::CanLowerReturn(CallingConv::ID CallConv, MachineFunction &MF,
 }
 
 SDValue
+VETargetLowering::LowerBitcast(SDValue Op, SelectionDAG &DAG) const {
+  if (Op.getSimpleValueType() == MVT::v256i64 && Op.getOperand(0).getSimpleValueType() == MVT::v256f64) {
+    return Op.getOperand(0);
+  } else {
+    return SDValue();
+  }
+}
+
+SDValue
 VETargetLowering::LowerMGATHER_MSCATTER(SDValue Op, SelectionDAG &DAG) const {
   SDLoc dl(Op);
   //dbgs() << "\nNext Instr:\n";
@@ -1101,6 +1110,8 @@ VETargetLowering::VETargetLowering(const TargetMachine &TM,
   }
 
   // Bits operations
+  setOperationAction(ISD::BITCAST, MVT::v256i64, Custom);
+
   setOperationAction(ISD::BITREVERSE, MVT::i32, Legal);
   setOperationAction(ISD::BITREVERSE, MVT::i64, Legal);
   setOperationAction(ISD::BSWAP, MVT::i32, Legal);
@@ -2760,6 +2771,8 @@ LowerOperation(SDValue Op, SelectionDAG &DAG) const {
   case ISD::BUILD_VECTOR:       return LowerBuildVector(Op, DAG);
   case ISD::INSERT_VECTOR_ELT:  return LowerINSERT_VECTOR_ELT(Op, DAG);
   case ISD::EXTRACT_VECTOR_ELT: return LowerEXTRACT_VECTOR_ELT(Op, DAG);
+
+  case ISD::BITCAST:            return LowerBitcast(Op, DAG);
 
   case ISD::VECTOR_SHUFFLE:     return LowerSHUFFLE_VECTOR(Op, DAG);
 
