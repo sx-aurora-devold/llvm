@@ -130,6 +130,60 @@ VETargetLowering::LowerMGATHER_MSCATTER(SDValue Op, SelectionDAG &DAG) const {
 }
 
 SDValue
+VETargetLowering::LowerMLOAD(SDValue Op, SelectionDAG &DAG) const {
+  SDLoc dl(Op);
+
+  MaskedLoadSDNode *N = cast<MaskedLoadSDNode>(Op.getNode());
+
+  SDValue BasePtr = N->getBasePtr();
+  SDValue Mask = N->getMask();
+  SDValue Chain = N->getChain();
+  SDValue PassThru = N->getPassThru();
+
+  MachinePointerInfo info = N->getPointerInfo();
+
+  if (Mask.getOpcode() != ISD::BUILD_VECTOR || Mask.getNumOperands() != 256) {
+    dbgs() << "Cannot handle gathers with complex masks.\n";
+    return SDValue();
+  }
+
+  int firstzero = 256;
+
+  for (unsigned i = 0; i < 256; i++) {
+    const SDValue Operand = Mask.getOperand(i);
+    if (Operand.getOpcode() != ISD::Constant) {
+      dbgs() << "Cannot handle load masks with complex elements.\n";
+      return SDValue();
+    }
+    if (Mask.getConstantOperandVal(i) != 1) {
+      if (firstzero == 256)
+        firstzero = i;
+      if (!PassThru.isUndef() && !PassThru.getOperand(i).isUndef()) {
+        dbgs() << "Cannot handle passthru.\n";
+        return SDValue();
+      }
+    } else {
+      if (firstzero != 256) {
+        dbgs() << "Cannot handle mixed load masks.\n";
+        return SDValue();
+      }
+    }
+  }
+
+  EVT i32 = EVT::getIntegerVT(*DAG.getContext(), 32);
+  EVT i64 = EVT::getIntegerVT(*DAG.getContext(), 64);
+
+  Chain = DAG.getNode(VEISD::VEC_LVL, dl, MVT::Other, {Chain, DAG.getConstant(firstzero, dl, i32)});
+
+  SDValue load = DAG.getLoad(Op.getSimpleValueType(), dl, Chain, BasePtr, info);
+
+  Chain = DAG.getNode(VEISD::VEC_LVL, dl, MVT::Other, {load.getValue(1), DAG.getConstant(256, dl, i32)});
+
+  SDValue merge = DAG.getMergeValues({load, Chain}, dl);
+  return merge;
+}
+
+SDValue
 VETargetLowering::LowerBuildVector(SDValue Chain, SelectionDAG &DAG) const {
   auto & bvNode = *cast<BuildVectorSDNode>(Chain);
 
@@ -1105,6 +1159,8 @@ VETargetLowering::VETargetLowering(const TargetMachine &TM,
 
     setOperationAction(ISD::MSCATTER,   VT, Custom);
     setOperationAction(ISD::MGATHER,   VT, Custom);
+
+    setOperationAction(ISD::MLOAD, VT, Custom);
   }
 
   // VE has no packed MUL, SDIV, or UDIV operations.
@@ -1229,6 +1285,7 @@ const char *VETargetLowering::getTargetNodeName(unsigned Opcode) const {
   case VEISD::TLS_LD:          return "VEISD::TLS_LD";
   case VEISD::TLS_CALL:        return "VEISD::TLS_CALL";
   case VEISD::VEC_BROADCAST:   return "VEISD::VEC_BROADCAST";
+  case VEISD::VEC_LVL:         return "VEISD::VEC_LVL";
   case VEISD::VEC_SEQ:         return "VEISD::VEC_SEQ";
   case VEISD::VEC_VMV:         return "VEISD::VEC_VMV";
   case VEISD::VEC_SCATTER:     return "VEISD::VEC_SCATTER";
@@ -2708,6 +2765,8 @@ LowerOperation(SDValue Op, SelectionDAG &DAG) const {
 
   case ISD::MSCATTER:
   case ISD::MGATHER:            return LowerMGATHER_MSCATTER(Op, DAG);
+
+  case ISD::MLOAD:              return LowerMLOAD(Op, DAG);
   }
 }
 

@@ -75,6 +75,8 @@ namespace llvm {
       VEC_GATHER,
       VEC_SCATTER,
 
+      VEC_LVL,
+
       /// A wrapper node for TargetConstantPool, TargetJumpTable,
       /// TargetExternalSymbol, TargetGlobalAddress, TargetGlobalTLSAddress,
       /// MCSymbol and TargetBlockAddress.
@@ -341,6 +343,8 @@ namespace llvm {
     SDValue LowerSHUFFLE_VECTOR(SDValue Op, SelectionDAG &DAG) const;
 
     SDValue LowerMGATHER_MSCATTER(SDValue Op, SelectionDAG &DAG) const;
+
+    SDValue LowerMLOAD(SDValue Op, SelectionDAG &DAG) const;
 
     SDValue LowerEH_SJLJ_SETJMP(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerEH_SJLJ_LONGJMP(SDValue Op, SelectionDAG &DAG) const;

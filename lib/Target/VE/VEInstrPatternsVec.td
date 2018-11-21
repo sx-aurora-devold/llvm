@@ -190,6 +190,8 @@ def vec_broadcast   : SDNode<"VEISD::VEC_BROADCAST", SDTypeProfile<1, 1, [SDTCis
 def vec_scatter   : SDNode<"VEISD::VEC_SCATTER", SDTypeProfile<0, 2, [SDTCisVec<0>, SDTCisVec<1>]>, [SDNPHasChain, SDNPMayStore, SDNPMemOperand]>;
 def vec_gather   : SDNode<"VEISD::VEC_GATHER", SDTypeProfile<1, 1, [SDTCisVec<0>, SDTCisVec<1>]>, [SDNPHasChain, SDNPMayLoad, SDNPMemOperand]>;
 
+def vec_lvl   : SDNode<"VEISD::VEC_LVL", SDTypeProfile<0, 1, []>, [SDNPHasChain]>;
+
 def vec_rotate   : SDNode<"VEISD::VEC_VMV", SDTypeProfile<1, 2, []>>;
 def : Pat<(v256f64 (vec_rotate i32:$sy, v256f64:$vz)), (VMVr i32:$sy, v256f64:$vz)>;
 def : Pat<(v256f64 (vec_rotate (i32 simm7:$I), v256f64:$vz)), (VMVi (i32 simm7:$I), v256f64:$vz)>;
@@ -204,6 +206,9 @@ def : Pat<(vec_scatter v256f64:$vx, v256i64:$vy), (VSCv v256f64:$vx, v256i64:$vy
 // Gather
 def : Pat<(v256i64 (vec_gather v256i64:$vy)), (VGTv v256i64:$vy)>;
 def : Pat<(v256f64 (vec_gather v256i64:$vy)), (VGTv v256i64:$vy)>;
+
+// LVL
+def : Pat<(vec_lvl i32:$sy), (LVL i32:$sy)>;
 
 // Broadcast
 def : Pat<(v256f64 (scalar_to_vector f64:$sy)), (VBRDf64r f64:$sy)>;

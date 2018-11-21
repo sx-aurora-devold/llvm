@@ -60,17 +60,21 @@ public:
 
   unsigned getMinVectorRegisterBitWidth() const { return 256*64; }
 
+  bool isLegalMaskedLoad(Type *DataType) {
+    return true;
+  }
+
   bool isLegalMaskedGather(Type *DataType) {
-      if (DataType->getVectorNumElements() != 256) {
-        return false;
-      }
+      //if (DataType->getVectorNumElements() != 256) {
+      //  return false;
+      //}
       return true;
   };
 
   bool isLegalMaskedScatter(Type *DataType) {
-      if (DataType->getVectorNumElements() != 256) {
-        return false;
-      }
+      //if (DataType->getVectorNumElements() != 256) {
+      //  return false;
+      //}
       return true;
   };
 
