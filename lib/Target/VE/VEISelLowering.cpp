@@ -58,6 +58,7 @@ VETargetLowering::CanLowerReturn(CallingConv::ID CallConv, MachineFunction &MF,
 SDValue
 VETargetLowering::LowerBitcast(SDValue Op, SelectionDAG &DAG) const {
   if (Op.getSimpleValueType() == MVT::v256i64 && Op.getOperand(0).getSimpleValueType() == MVT::v256f64) {
+    LLVM_DEBUG(dbgs() << "Lowering bitcast of similar types.\n");
     return Op.getOperand(0);
   } else {
     return SDValue();
@@ -66,6 +67,7 @@ VETargetLowering::LowerBitcast(SDValue Op, SelectionDAG &DAG) const {
 
 SDValue
 VETargetLowering::LowerMGATHER_MSCATTER(SDValue Op, SelectionDAG &DAG) const {
+  LLVM_DEBUG(dbgs() << "Lowering gather or scatter\n");
   SDLoc dl(Op);
   //dbgs() << "\nNext Instr:\n";
   //Op.dumpr(&DAG);
@@ -87,7 +89,6 @@ VETargetLowering::LowerMGATHER_MSCATTER(SDValue Op, SelectionDAG &DAG) const {
     MaskedScatterSDNode *N = cast<MaskedScatterSDNode>(Op.getNode());
     Source = N->getValue();
   } else {
-    dbgs() << "wtf?\n";
     return SDValue();
   }
 
@@ -106,17 +107,17 @@ VETargetLowering::LowerMGATHER_MSCATTER(SDValue Op, SelectionDAG &DAG) const {
   // TODO: vmx = svm (mask);
   //Mask.dumpr(&DAG);
   if (Mask.getOpcode() != ISD::BUILD_VECTOR || Mask.getNumOperands() != 256) {
-    dbgs() << "Cannot handle gathers with complex masks.\n";
+    LLVM_DEBUG(dbgs() << "Cannot handle gathers with complex masks.\n");
     return SDValue();
   }
   for (unsigned i = 0; i < 256; i++) {
     const SDValue Operand = Mask.getOperand(i);
     if (Operand.getOpcode() != ISD::Constant) {
-      dbgs() << "Cannot handle gather masks with complex elements.\n";
+      LLVM_DEBUG(dbgs() << "Cannot handle gather masks with complex elements.\n");
       return SDValue();
     }
     if (Mask.getConstantOperandVal(i) != 1) {
-      dbgs() << "Cannot handle gather masks with elements != 1.\n";
+      LLVM_DEBUG(dbgs() << "Cannot handle gather masks with elements != 1.\n");
       return SDValue();
     }
   }
@@ -140,6 +141,8 @@ VETargetLowering::LowerMGATHER_MSCATTER(SDValue Op, SelectionDAG &DAG) const {
 
 SDValue
 VETargetLowering::LowerMLOAD(SDValue Op, SelectionDAG &DAG) const {
+  LLVM_DEBUG(dbgs() << "Lowering MLOAD\n");
+  LLVM_DEBUG(Op.dumpr(&DAG));
   SDLoc dl(Op);
 
   MaskedLoadSDNode *N = cast<MaskedLoadSDNode>(Op.getNode());
@@ -152,7 +155,7 @@ VETargetLowering::LowerMLOAD(SDValue Op, SelectionDAG &DAG) const {
   MachinePointerInfo info = N->getPointerInfo();
 
   if (Mask.getOpcode() != ISD::BUILD_VECTOR || Mask.getNumOperands() != 256) {
-    dbgs() << "Cannot handle gathers with complex masks.\n";
+    LLVM_DEBUG(dbgs() << "Cannot handle gathers with complex masks.\n");
     return SDValue();
   }
 
@@ -161,19 +164,19 @@ VETargetLowering::LowerMLOAD(SDValue Op, SelectionDAG &DAG) const {
   for (unsigned i = 0; i < 256; i++) {
     const SDValue Operand = Mask.getOperand(i);
     if (Operand.getOpcode() != ISD::Constant) {
-      dbgs() << "Cannot handle load masks with complex elements.\n";
+      LLVM_DEBUG(dbgs() << "Cannot handle load masks with complex elements.\n");
       return SDValue();
     }
     if (Mask.getConstantOperandVal(i) != 1) {
       if (firstzero == 256)
         firstzero = i;
       if (!PassThru.isUndef() && !PassThru.getOperand(i).isUndef()) {
-        dbgs() << "Cannot handle passthru.\n";
+        LLVM_DEBUG(dbgs() << "Cannot handle passthru.\n");
         return SDValue();
       }
     } else {
       if (firstzero != 256) {
-        dbgs() << "Cannot handle mixed load masks.\n";
+        LLVM_DEBUG(dbgs() << "Cannot handle mixed load masks.\n");
         return SDValue();
       }
     }
@@ -189,11 +192,14 @@ VETargetLowering::LowerMLOAD(SDValue Op, SelectionDAG &DAG) const {
   Chain = DAG.getNode(VEISD::VEC_LVL, dl, MVT::Other, {load.getValue(1), DAG.getConstant(256, dl, i32)});
 
   SDValue merge = DAG.getMergeValues({load, Chain}, dl);
+  LLVM_DEBUG(dbgs() << "Becomes\n");
+  LLVM_DEBUG(merge.dumpr(&DAG));
   return merge;
 }
 
 SDValue
 VETargetLowering::LowerBuildVector(SDValue Chain, SelectionDAG &DAG) const {
+  LLVM_DEBUG(dbgs() << "Lowering BuildVector\n");
   auto & bvNode = *cast<BuildVectorSDNode>(Chain);
 
   SDLoc DL(Chain);
@@ -2614,6 +2620,7 @@ SDValue VETargetLowering::LowerINSERT_VECTOR_ELT(SDValue Op,
 }
 
 SDValue VETargetLowering::LowerSHUFFLE_VECTOR(SDValue Op, SelectionDAG &DAG) const {
+  LLVM_DEBUG(dbgs() << "Lowering Shuffle\n");
   SDLoc dl(Op);
   ShuffleVectorSDNode *ShuffleInstr = cast<ShuffleVectorSDNode>(Op.getNode());
 
@@ -2638,6 +2645,7 @@ SDValue VETargetLowering::LowerSHUFFLE_VECTOR(SDValue Op, SelectionDAG &DAG) con
   }
 
   if (firstVecLength != 256 || secondVecLength != 256 || resultSize != 256) {
+    LLVM_DEBUG(dbgs() << "Invalid vector lengths\n");
     return SDValue();
   }
 
@@ -2650,20 +2658,26 @@ SDValue VETargetLowering::LowerSHUFFLE_VECTOR(SDValue Op, SelectionDAG &DAG) con
     if (mask_value < 0)
       continue;
     if (mask_value < 256) {
-      if (firstsecond != 256)
+      if (firstsecond != 256) {
+        LLVM_DEBUG(dbgs() << "Mixing\n");
         return SDValue();
+      }
       if (firstrot == 256)
         firstrot = i - mask_value;
-      else if (firstrot != i - mask_value)
+      else if (firstrot != i - mask_value) {
+        LLVM_DEBUG(dbgs() << "Bad first rot\n");
         return SDValue();
+      }
     } else {
       if (firstsecond == 256)
         firstsecond = i;
       mask_value -= 256;
       if (secondrot == 256)
         secondrot = i - mask_value;
-      else if (secondrot != i - mask_value)
+      else if (secondrot != i - mask_value) {
+        LLVM_DEBUG(dbgs() << "Bad second rot\n");
         return SDValue();
+      }
     }
   }
 
@@ -3139,9 +3153,14 @@ void VETargetLowering::ReplaceNodeResults(SDNode *N,
   case ISD::BUILD_VECTOR:
   case ISD::INSERT_VECTOR_ELT:
   case ISD::EXTRACT_VECTOR_ELT:
+  case ISD::VECTOR_SHUFFLE:
+  case ISD::MSCATTER:
+  case ISD::MGATHER:
+  case ISD::MLOAD:
     // ask llvm to expand vector related instructions if those are not legal.
     return;
   default:
+    LLVM_DEBUG(N->dumpr(&DAG));
     llvm_unreachable("Do not know how to custom type legalize this operation!");
   }
 }
