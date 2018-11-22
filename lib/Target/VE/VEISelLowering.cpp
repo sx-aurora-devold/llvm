@@ -2652,26 +2652,46 @@ SDValue VETargetLowering::LowerSHUFFLE_VECTOR(SDValue Op, SelectionDAG &DAG) con
   int firstrot = 256;
   int secondrot = 256;
   int firstsecond = 256;
+  bool inv_order;
+
+  if (ShuffleInstr->getMaskElt(0) < 256) {
+    inv_order = false;
+  } else {
+    inv_order = true;
+  }
 
   for (int i = 0; i < 256; i++) {
     int mask_value = ShuffleInstr->getMaskElt(i);
-    if (mask_value < 0)
+
+    if (mask_value < 0) // Undef
       continue;
+
     if (mask_value < 256) {
-      if (firstsecond != 256) {
+      if (firstsecond != 256 && !inv_order) {
         LLVM_DEBUG(dbgs() << "Mixing\n");
         return SDValue();
       }
+
+      if (firstsecond == 256 && inv_order)
+        firstsecond = i;
+
       if (firstrot == 256)
         firstrot = i - mask_value;
       else if (firstrot != i - mask_value) {
         LLVM_DEBUG(dbgs() << "Bad first rot\n");
         return SDValue();
       }
-    } else {
-      if (firstsecond == 256)
+    } else { //mask_value >= 256
+      if (firstsecond != 256 && inv_order) {
+        LLVM_DEBUG(dbgs() << "Mixing\n");
+        return SDValue();
+      }
+
+      if (firstsecond == 256 && !inv_order)
         firstsecond = i;
+
       mask_value -= 256;
+
       if (secondrot == 256)
         secondrot = i - mask_value;
       else if (secondrot != i - mask_value) {
@@ -2705,20 +2725,23 @@ SDValue VETargetLowering::LowerSHUFFLE_VECTOR(SDValue Op, SelectionDAG &DAG) con
 
   for (int i = 0; i < block; i++) {
     //set blocks to all 0s
-    SDValue zero = DAG.getConstant(0, dl, i64);
+    SDValue mask = inv_order ? DAG.getConstant(0xffffffffffffffff, dl, i64) : DAG.getConstant(0, dl, i64);
     SDValue index = DAG.getConstant(i, dl, i64);
-    Mask = DAG.getNode(VEISD::INT_LVM, dl, v256i1, {Mask, index, zero});
+    Mask = DAG.getNode(VEISD::INT_LVM, dl, v256i1, {Mask, index, mask});
   }
 
-  SDValue one = DAG.getConstant(0xffffffffffffffff, dl, i64);
-  one = DAG.getNode(ISD::SRL, dl, i64, {one, DAG.getConstant(secondblock, dl, i64)});
-  Mask = DAG.getNode(VEISD::INT_LVM, dl, v256i1, {Mask, DAG.getConstant(block, dl, i64), one});
+  SDValue mask = DAG.getConstant(0xffffffffffffffff, dl, i64);
+  if (!inv_order)
+    mask = DAG.getNode(ISD::SRL, dl, i64, {mask, DAG.getConstant(secondblock, dl, i64)});
+  else
+    mask = DAG.getNode(ISD::SHL, dl, i64, {mask, DAG.getConstant(64 - secondblock, dl, i64)});
+  Mask = DAG.getNode(VEISD::INT_LVM, dl, v256i1, {Mask, DAG.getConstant(block, dl, i64), mask});
 
   for (int i = block + 1; i < 4; i++) {
     //set blocks to all 1s
-    SDValue one = DAG.getConstant(0xffffffffffffffff, dl, i64);
+    SDValue mask = inv_order ? DAG.getConstant(0, dl, i64) : DAG.getConstant(0xffffffffffffffff, dl, i64);
     SDValue index = DAG.getConstant(i, dl, i64);
-    Mask = DAG.getNode(VEISD::INT_LVM, dl, v256i1, {Mask, index, one});
+    Mask = DAG.getNode(VEISD::INT_LVM, dl, v256i1, {Mask, index, mask});
   }
 
   SDValue returnValue = DAG.getNode(VEISD::INT_VMRG, dl, Op.getSimpleValueType(), {firstrotated, secondrotated, Mask});
