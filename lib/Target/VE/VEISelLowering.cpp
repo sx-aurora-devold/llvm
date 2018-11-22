@@ -2682,12 +2682,16 @@ SDValue VETargetLowering::LowerSHUFFLE_VECTOR(SDValue Op, SelectionDAG &DAG) con
   }
 
   if (firstrot < 0)
-    firstrot += 256;
+    firstrot *= -1;
+  else
+    firstrot = 256 - firstrot;
   if (secondrot < 0)
-    secondrot += 256;
+    secondrot *= -1;
+  else
+    secondrot = 256 - secondrot;
 
-  SDValue firstrotated = firstrot % 256 != 0 ? DAG.getNode(VEISD::VEC_VMV, dl, firstVec.getSimpleValueType(), {DAG.getConstant(firstrot, dl, EVT::getIntegerVT(*DAG.getContext(), 32)), firstVec}) : firstVec;
-  SDValue secondrotated = secondrot % 256 != 0 ? DAG.getNode(VEISD::VEC_VMV, dl, secondVec.getSimpleValueType(), {DAG.getConstant(secondrot, dl, EVT::getIntegerVT(*DAG.getContext(), 32)), secondVec}) : secondVec;
+  SDValue firstrotated = firstrot % 256 != 0 ? DAG.getNode(VEISD::VEC_VMV, dl, firstVec.getSimpleValueType(), {DAG.getConstant(firstrot % 256, dl, EVT::getIntegerVT(*DAG.getContext(), 32)), firstVec}) : firstVec;
+  SDValue secondrotated = secondrot % 256 != 0 ? DAG.getNode(VEISD::VEC_VMV, dl, secondVec.getSimpleValueType(), {DAG.getConstant(secondrot % 256, dl, EVT::getIntegerVT(*DAG.getContext(), 32)), secondVec}) : secondVec;
 
   EVT i64 = EVT::getIntegerVT(*DAG.getContext(), 64);
   EVT v256i64 = EVT::getVectorVT(*DAG.getContext(), i64, 256);
