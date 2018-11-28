@@ -684,10 +684,23 @@ VETargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
 
   bool IsPICCall = isPositionIndependent();
 
+  // PC-relative references to external symbols should go through $stub.
+  // If so, we need to prepare GlobalBaseReg first.
+  const TargetMachine &TM = DAG.getTarget();
+  const Module *Mod = DAG.getMachineFunction().getFunction().getParent();
+  const GlobalValue *GV = nullptr;
+  if (auto *G = dyn_cast<GlobalAddressSDNode>(Callee))
+    GV = G->getGlobal();
+  bool Local = TM.shouldAssumeDSOLocal(*Mod, GV);
+  bool UsePlt = !Local;
+  MachineFunction &MF = DAG.getMachineFunction();
+
   // Turn GlobalAddress/ExternalSymbol node into a value node
-  // contining the address of them here.
+  // containing the address of them here.
   if (GlobalAddressSDNode *G = dyn_cast<GlobalAddressSDNode>(Callee)) {
     if (IsPICCall) {
+      if (UsePlt)
+        Subtarget->getInstrInfo()->getGlobalBaseReg(&MF);
       Callee = DAG.getTargetGlobalAddress(G->getGlobal(), DL, PtrVT, 0, 0);
       Callee = DAG.getNode(VEISD::GETFUNPLT, DL, PtrVT, Callee);
     } else {
@@ -696,6 +709,8 @@ VETargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
     }
   } else if (ExternalSymbolSDNode *E = dyn_cast<ExternalSymbolSDNode>(Callee)) {
     if (IsPICCall) {
+      if (UsePlt)
+        Subtarget->getInstrInfo()->getGlobalBaseReg(&MF);
       Callee = DAG.getTargetExternalSymbol(E->getSymbol(), PtrVT, 0);
       Callee = DAG.getNode(VEISD::GETFUNPLT, DL, PtrVT, Callee);
     } else {
@@ -1064,8 +1079,8 @@ VETargetLowering::VETargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::FFLOOR, VT, Expand);
     setOperationAction(ISD::FMINNUM, VT, Expand);
     setOperationAction(ISD::FMAXNUM, VT, Expand);
-    setOperationAction(ISD::FMINNAN, VT, Expand);
-    setOperationAction(ISD::FMAXNAN, VT, Expand);
+    setOperationAction(ISD::FMINIMUM, VT, Expand);
+    setOperationAction(ISD::FMAXIMUM, VT, Expand);
     setOperationAction(ISD::FSINCOS, VT, Expand);
   }
 
@@ -1644,6 +1659,12 @@ SDValue VETargetLowering::LowerToTLSGeneralDynamicModel(
   // GETTLSADDR will be codegen'ed as call. Inform MFI that function has calls.
   MachineFrameInfo &MFI = DAG.getMachineFunction().getFrameInfo();
   MFI.setHasCalls(true);
+
+  // Also generate code to prepare a GOT register if it is PIC.
+  if (isPositionIndependent()) {
+    MachineFunction &MF = DAG.getMachineFunction();
+    Subtarget->getInstrInfo()->getGlobalBaseReg(&MF);
+  }
 
   return Chain;
 }
@@ -2358,15 +2379,18 @@ SDValue VETargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
     MachineFunction &MF = DAG.getMachineFunction();
     const TargetLowering &TLI = DAG.getTargetLoweringInfo();
     MVT PtrVT = TLI.getPointerTy(DAG.getDataLayout());
-    auto &Context = MF.getMMI().getContext();
-    MCSymbol *S = Context.getOrCreateSymbol(Twine("GCC_except_table") +
-                                            Twine(MF.getFunctionNumber()));
-#if 1
-    return DAG.getMCSymbol(S, PtrVT);
-#else
-    return DAG.getNode(VEISD::Wrapper, dl, Op.getSimpleValueType(),
-                       DAG.getMCSymbol(S, PtrVT));
-#endif
+    const VETargetMachine *TM =
+      static_cast<const VETargetMachine*>(&DAG.getTarget());
+
+    // Creat GCC_except_tableXX string.  The real symbol for that will be
+    // generated in EHStreamer::emitExceptionTable() later.  So, we just
+    // borrow it's name here.
+    TM->getStrList()->push_back(std::string(
+      (Twine("GCC_except_table") + Twine(MF.getFunctionNumber())).str()));
+    SDValue Addr = DAG.getTargetExternalSymbol(TM->getStrList()->back().c_str(),
+                                               PtrVT, 0);
+    return makeHiLoPair(Addr, VEMCExpr::VK_VE_HI32,
+                        VEMCExpr::VK_VE_LO32, DAG);
   }
   case Intrinsic::ve_vfdivsA_vvv: {
 /*

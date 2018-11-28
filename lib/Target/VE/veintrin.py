@@ -225,7 +225,7 @@ class Inst:
 
     def hasMask(self):
         if len(self.outs) > 0 and self.outs[0].isMask():
-            return False
+            return True
         for op in self.ins:
             if op.isMask():
                 return True
@@ -1067,7 +1067,10 @@ def gen_pattern(insts):
             ni = re.sub(r'[INZ]', 's', I.intrinsicName()) # replace Imm to s
             l = "(int_ve_{} {})".format(ni, argsL)
             r = "({} {})".format(I.instName, argsR)
-            print("def : Pat<{}, {}>;".format(l, r))
+            if I.hasMask():
+                print("// def : Pat<{}, {}>;".format(l, r))
+            else:
+                print("def : Pat<{}, {}>;".format(l, r))
 
 def gen_bulitin(insts):
     for I in insts:
@@ -1198,8 +1201,12 @@ T.Inst4f(0xF3, "vfnmsb", "VFNMSB", "{0} =  - ({2} * {3} - {1})")
 T.Inst2f(0xE1, "vrcp", "VRCP", "{0} = 1.0f / {1}")
 T.Inst2f(0xF1, "vrsqrt", "VRSQRT", "{0} = 1.0f / std::sqrt({1})", True)
 T.NoImpl("VRSQRTnex")
-T.NoImpl("VFIX")
-T.NoImpl("VFIXX")
+T.InstX(0xE8, "VFIXdsx", "vcvt.w.d.sx", [[VX(T_i32), VY(T_f64)]], "{0} = (int)({1}+0.5)")
+T.InstX(0xE8, "VFIXdzx", "vcvt.w.d.zx", [[VX(T_i32), VY(T_f64)]], "{0} = (unsigned int)({1}+0.5)")
+T.InstX(0xE8, "VFIXssx", "vcvt.w.s.sx", [[VX(T_i32), VY(T_f32)]], "{0} = (int)({1}+0.5)")
+T.InstX(0xE8, "VFIXszx", "vcvt.w.s.zx", [[VX(T_i32), VY(T_f32)]], "{0} = (unsigned int)({1}+0.5)")
+T.InstX(0xE8, "VFIXp", "pvcvt.w.s", [[VX(T_i32), VY(T_f32)]], "{0} = (int)({1}+0.5)")
+T.InstX(0xA8, "VFIXX", "vcvt.l.d", [[VX(T_i64), VY(T_f64)]], "{0} = (long long)({1}+0.5)")
 T.InstX(0xF8, "VFLTd", "vcvt.d.w", [[VX(T_f64), VY(T_i32)]], "{0} = (double){1}")
 T.InstX(0xF8, "VFLTs", "vcvt.s.w", [[VX(T_f32), VY(T_i32)]], "{0} = (float){1}")
 T.InstX(0xF8, "VFLTp", "pvcvt.s.w", [[VX(T_f32), VY(T_i32)]], "{0} = (float){1}")
