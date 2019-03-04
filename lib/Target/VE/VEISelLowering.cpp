@@ -200,7 +200,34 @@ VETargetLowering::LowerMLOAD(SDValue Op, SelectionDAG &DAG) const {
   return merge;
 }
 
-#if 0
+SDValue
+VETargetLowering::LowerBroadcast(SDValue Chain, SelectionDAG & DAG) const {
+  SDLoc dl(Chain);
+
+// only use custom lowering for masks
+  auto chainTy = Chain.getSimpleValueType();
+  if (chainTy != MVT::v256i1 && chainTy != MVT::v512i1) return Chain; // TODO implement this for v512i1 (simply using VMP0)
+  if (Chain.getOpcode() != VEISD::VEC_BROADCAST) return Chain;
+
+
+  auto bcConst = dyn_cast<ConstantSDNode>(Chain.getOperand(0));
+  if (!bcConst) {
+    abort(); // TODO implement dynamic broadcast for masks
+  }
+
+  // use the hard-wired vm0/vmp0 registers
+  unsigned TrueRegClass = chainTy == MVT::v256i1 ? VE::VM0 : VE::VMP0;
+  SDValue TrueMaskReg = DAG.getCopyFromReg(DAG.getEntryNode(),
+                                           dl, TrueRegClass, chainTy);
+
+  bool genTrueMask = (bool) bcConst->getSExtValue();
+
+  if (genTrueMask) return TrueMaskReg;
+  return DAG.getNode(VEISD::INT_NEGM, dl, chainTy, {TrueMaskReg});
+}
+
+
+#if 1
 // FIXME: temporary disabling LowerBUILD_VECTOR added by
 // https://github.com/SXAuroraTSUBASAResearch/llvm/pull/2 since
 // this doesn't work with test-suite/SingleSource/UnitTests/Vector/build.c.
@@ -211,7 +238,18 @@ VETargetLowering::LowerBUILD_VECTOR(SDValue Chain, SelectionDAG &DAG) const {
 
   SDLoc DL(Chain);
 
-// match VEC_BROADCAST
+// match a const/undef splat
+#if 0
+  // breaks for v256f64
+  APInt splatConst = APInt::getNullValue(32);
+  if (ISD::isConstantSplatVector(&bvNode, splatConst)) {
+    auto splatConstNode = DAG.getConstant(splatConst, DL, bvNode.getOperand(0).getSimpleValueType());
+    return LowerBroadcast(DAG.getNode(VEISD::VEC_BROADCAST, DL, Chain.getSimpleValueType(),
+                                  splatConstNode), DAG);
+  }
+#endif
+
+// detect first defined position
   bool allUndef = true;
   unsigned first_def = -1;
   for (unsigned i = 0; i < bvNode.getNumOperands(); ++i) {
@@ -223,8 +261,8 @@ VETargetLowering::LowerBUILD_VECTOR(SDValue Chain, SelectionDAG &DAG) const {
   }
 
   if (allUndef) {
-    return DAG.getNode(VEISD::VEC_BROADCAST, DL, Chain.getSimpleValueType(),
-                                  bvNode.getOperand(0));
+    return LowerBroadcast(DAG.getNode(VEISD::VEC_BROADCAST, DL, Chain.getSimpleValueType(),
+                                  bvNode.getOperand(0)), DAG);
   }
 
   bool isBroadcast = true;
@@ -236,9 +274,12 @@ VETargetLowering::LowerBUILD_VECTOR(SDValue Chain, SelectionDAG &DAG) const {
   }
 
   if (isBroadcast) {
-    return DAG.getNode(VEISD::VEC_BROADCAST, DL, Chain.getSimpleValueType(),
-                                  bvNode.getOperand(first_def));
+    return LowerBroadcast(DAG.getNode(VEISD::VEC_BROADCAST, DL, Chain.getSimpleValueType(),
+                                  bvNode.getOperand(first_def)), DAG);
   }
+
+  // FIXME split constant masks into i64
+
 
 
 // match VEC_SEQ(stride) patterns
@@ -1244,7 +1285,7 @@ VETargetLowering::VETargetLowering(const TargetMachine &TM,
       setOperationAction(ISD::UINT_TO_FP, VT, Promote); // use i64
     } else {
       if (VT.getVectorNumElements() == 2) {
-        // FIXME: it is not possible to write 
+        // FIXME: it is not possible to write
         // "Pat<(v2i64 (sext v2i32:$vx)), ...>;" patterns because of
         // unknown "vtInt:  (vt:{ *:[Other] })" errors.
         setOperationAction(ISD::SIGN_EXTEND, VT, Expand);
