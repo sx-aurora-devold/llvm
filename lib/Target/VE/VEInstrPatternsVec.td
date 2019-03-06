@@ -368,24 +368,25 @@ def : Pat<(v512i32 (vec_broadcast i64:$sy)),
           (VBRDpr i64:$sy, (COPY_TO_REGCLASS (LEAzzi 256), VLS))>;
 
 // Condition Code
+// signed compare
 def : Pat<(setcc v256i64:$vx, v256i64:$vy, CCSIOp:$cond),
+          (v256i1 (VFMKv (icond2cc $cond),
+                         (VCPXlv v256i64:$vx, v256i64:$vy,
+                                  (COPY_TO_REGCLASS (LEAzzi 256), VLS)),
+                         (COPY_TO_REGCLASS (LEAzzi 256), VLS)))>;
+
+// unsigned compare
+def : Pat<(setcc v256i64:$vx, v256i64:$vy, CCUIOp:$cond),
           (v256i1 (VFMKv (icond2cc $cond),
                          (VCMPlv v256i64:$vx, v256i64:$vy,
                                   (COPY_TO_REGCLASS (LEAzzi 256), VLS)),
                          (COPY_TO_REGCLASS (LEAzzi 256), VLS)))>;
 
-// FIXME VE only supports signed integer compare (cf section 5.3.1)
-// def : Pat<(setcc v256i64:$vx, v256i64:$vy, CCUIOp:$cond),
-//           (v256i1 (VFMKv (icond2cc $cond),
-//                          (VCMPlv v256i64:$vx, v256i64:$vy,
-//                                   (COPY_TO_REGCLASS (LEAzzi 256), VLS)),
-//                          (COPY_TO_REGCLASS (LEAzzi 256), VLS)))>;
-// 
 
-// otherwise, it has to be a fp compare
+// fp compare
 def : Pat<(setcc v256f64:$vx, v256f64:$vy, cond:$cond),
           (v256i1 (VFMKv (fcond2cc $cond),
-                         (VCMPlv v256f64:$vx, v256f64:$vy,
+                         (VFCPdv v256f64:$vx, v256f64:$vy,
                                  (COPY_TO_REGCLASS (LEAzzi 256), VLS)),
                          (COPY_TO_REGCLASS (LEAzzi 256), VLS)))>;
 
