@@ -331,15 +331,15 @@ def : Pat<(v256f64 (vec_rotate (i32 simm7:$I), v256f64:$vz)),
           (VMVi (i32 simm7:$I), v256f64:$vz,
                 (COPY_TO_REGCLASS (LEAzzi 256), VLS))>;
 
-// Shuffle
-// TODO
-
 // Scatter
-// def : Pat<(vec_scatter v256f64:$vx, v256i64:$addr, v256i1:$vm),
-//           (VSCvm v256i64:$vx, v256i64:$addr, v256i1:$vm,
-//                 (COPY_TO_REGCLASS (LEAzzi 256), VLS))>;
+def : Pat<(vec_scatter v256f64:$vx, v256i64:$addr, v256i1:$vm),
+          (VSCvm v256f64:$vx, v256i64:$addr, v256i1:$vm,
+                (COPY_TO_REGCLASS (LEAzzi 256), VLS))>;
+def : Pat<(vec_scatter v256i64:$vx, v256i64:$addr, v256i1:$vm),
+          (VSCvm v256i64:$vx, v256i64:$addr, v256i1:$vm,
+                (COPY_TO_REGCLASS (LEAzzi 256), VLS))>;
 
-// vec_gather
+// Gather
 def : Pat<(v256f64 (vec_gather v256i64:$addr, v256i1:$vm)),
           (VGTvm v256i64:$addr, v256i1:$vm, (COPY_TO_REGCLASS (LEAzzi 256), VLS))>;
 def : Pat<(v256i64 (vec_gather v256i64:$addr, v256i1:$vm)),
@@ -412,6 +412,9 @@ def : Pat<(v512f32 (vselect v512i1:$m, v512f32:$vy, v512f32:$vz)),
 def : Pat<(v256i32 (vec_seq (i32 1))), (VSEQlv 256)>;
 def : Pat<(v512i32 (vec_seq (i32 1))), (VSEQpv 256)>;
 def : Pat<(v256i64 (vec_seq (i64 1))), (VSEQv 256)>;
+
+def : Pat<(v256i64 (vec_seq (i64 simm7:$imm))),
+          (VMPYli $imm, (VSEQv 256), (COPY_TO_REGCLASS (LEAzzi 256), VLS))>;
 
 // Double-Precision Arithmetic
 //
