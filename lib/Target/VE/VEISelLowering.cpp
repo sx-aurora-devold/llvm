@@ -386,10 +386,30 @@ VETargetLowering::LowerBroadcast(SDValue Chain, SelectionDAG & DAG) const {
 }
 
 
-#if 1
-// FIXME: temporary disabling LowerBUILD_VECTOR added by
-// https://github.com/SXAuroraTSUBASAResearch/llvm/pull/2 since
-// this doesn't work with test-suite/SingleSource/UnitTests/Vector/build.c.
+static bool isBroadCast(BuildVectorSDNode *BVN,
+                        bool &AllUndef, unsigned &FirstDef) {
+  // Check UNDEF or FirstDef
+  AllUndef = true;
+  FirstDef = 0;
+  for (unsigned i = 0; i < BVN->getNumOperands(); ++i) {
+    if (!BVN->getOperand(i).isUndef()) {
+      AllUndef = false;
+      FirstDef = i;
+      break;
+    }
+  }
+  if (AllUndef)
+    return true;
+  // Check boradcast
+  for (unsigned i = FirstDef + 1; i < BVN->getNumOperands(); ++i) {
+    if (BVN->getOperand(FirstDef) != BVN->getOperand(i) &&
+        !BVN->getOperand(i).isUndef()) {
+      return false;
+    }
+  }
+  return true;
+}
+
 SDValue
 VETargetLowering::LowerBUILD_VECTOR(SDValue Chain, SelectionDAG &DAG) const {
   LLVM_DEBUG(dbgs() << "Lowering BUILD_VECTOR\n");
@@ -408,38 +428,22 @@ VETargetLowering::LowerBUILD_VECTOR(SDValue Chain, SelectionDAG &DAG) const {
   }
 #endif
 
-// detect first defined position
-  bool allUndef = true;
-  unsigned first_def = -1;
-  for (unsigned i = 0; i < bvNode.getNumOperands(); ++i) {
-    if (!bvNode.getOperand(i).isUndef()) {
-      allUndef = false;
-      first_def = i;
-      break;
+  // match VEC_BROADCAST
+  bool allUndef;
+  unsigned first_def;
+  if (isBroadCast(&bvNode, allUndef, first_def)) {
+    if (allUndef) {
+      LLVM_DEBUG(dbgs() << "AllUndef: VEC_BROADCAST ");
+      LLVM_DEBUG(bvNode.getOperand(0)->dump());
+      return LowerBroadcast(DAG.getNode(VEISD::VEC_BROADCAST, DL, Chain.getSimpleValueType(),
+			      bvNode.getOperand(0)), DAG);
+    } else {
+      LLVM_DEBUG(dbgs() << "isBroadCast: VEC_BROADCAST ");
+      LLVM_DEBUG(bvNode.getOperand(first_def)->dump());
+      return LowerBroadcast(DAG.getNode(VEISD::VEC_BROADCAST, DL, Chain.getSimpleValueType(),
+			      bvNode.getOperand(first_def)), DAG);
     }
   }
-
-  if (allUndef) {
-    return LowerBroadcast(DAG.getNode(VEISD::VEC_BROADCAST, DL, Chain.getSimpleValueType(),
-                                  bvNode.getOperand(0)), DAG);
-  }
-
-  bool isBroadcast = true;
-  for (unsigned i = first_def + 1; i < bvNode.getNumOperands(); ++i) {
-    if (bvNode.getOperand(first_def) != bvNode.getOperand(i) && !bvNode.getOperand(i).isUndef()) {
-      isBroadcast = false;
-      break;
-    }
-  }
-
-  if (isBroadcast) {
-    return LowerBroadcast(DAG.getNode(VEISD::VEC_BROADCAST, DL, Chain.getSimpleValueType(),
-                                  bvNode.getOperand(first_def)), DAG);
-  }
-
-  // FIXME split constant masks into i64
-
-
 
 // match VEC_SEQ(stride) patterns
   // identify a constant stride vector
@@ -536,6 +540,8 @@ VETargetLowering::LowerBUILD_VECTOR(SDValue Chain, SelectionDAG &DAG) const {
       SDValue shiftbroadcast = DAG.getNode(VEISD::VEC_BROADCAST, DL, EVT::getVectorVT(*DAG.getContext(), EVT::getIntegerVT(*DAG.getContext(), 64), 256), DAG.getConstant(blockLengthLog, DL, EVT::getIntegerVT(*DAG.getContext(), 64)));
 
       SDValue shift = DAG.getNode(ISD::SRL, DL, Chain.getSimpleValueType(), {sequence, shiftbroadcast});
+      LLVM_DEBUG(dbgs() << "BlockStride: VEC_SEQ >> VEC_BROADCAST");
+      LLVM_DEBUG(shift.dump());
       return shift;
     }
   }
@@ -551,10 +557,17 @@ VETargetLowering::LowerBUILD_VECTOR(SDValue Chain, SelectionDAG &DAG) const {
 
       SDValue modulo = DAG.getNode(ISD::AND, DL, Chain.getSimpleValueType(), {sequence, modulobroadcast});
 
+      LLVM_DEBUG(dbgs() << "BlockStride2: VEC_SEQ & VEC_BROADCAST");
+      LLVM_DEBUG(modulo.dump());
       return modulo;
     }
   }
 
+  // FIXME: disable LowerBUILD_VECTOR's INSERT_VECTOR_ELT
+  // added by https://github.com/SXAuroraTSUBASAResearch/llvm/pull/2 since
+  // this cause inifinity loop on
+  // test-suite/SingleSource/UnitTests/Vector/build.c.
+#if 0
   // default to element-wise insertion
   SDValue newVector = DAG.getNode(VEISD::VEC_BROADCAST, DL, Chain.getSimpleValueType(),
                                   bvNode.getOperand(0));
@@ -568,18 +581,11 @@ VETargetLowering::LowerBUILD_VECTOR(SDValue Chain, SelectionDAG &DAG) const {
   }
 
   return newVector;
-}
 #else
-SDValue VETargetLowering::LowerBUILD_VECTOR(SDValue Op,
-                                            SelectionDAG &DAG) const {
-  BuildVectorSDNode *BVN = cast<BuildVectorSDNode>(Op.getNode());
-  if (BVN->isConstant()) {
-    // All values are either a constant value or undef, so optimize it...
-  }
   // Otherwise, ask llvm to expand it to multiple INSERT_VECTOR_ELT insns.
   return SDValue();
-}
 #endif
+}
 
 static SDValue PeekThroughCasts(SDValue Op) {
   switch (Op.getOpcode()) {
@@ -1262,7 +1268,7 @@ VETargetLowering::VETargetLowering(const TargetMachine &TM,
     setLoadExtAction(ISD::SEXTLOAD, VT, MVT::i1, Promote);
     setLoadExtAction(ISD::ZEXTLOAD, VT, MVT::i1, Promote);
     setLoadExtAction(ISD::EXTLOAD,  VT, MVT::i1, Promote);
-    setTruncStoreAction(MVT::i64, MVT::i1, Expand);
+    setTruncStoreAction(VT, MVT::i1, Expand);
   }
 
   // Turn FP truncstore into trunc + store.
@@ -1538,14 +1544,7 @@ VETargetLowering::VETargetLowering(const TargetMachine &TM,
       setOperationAction(ISD::CONCAT_VECTORS,     VT, Expand);
       setOperationAction(ISD::INSERT_SUBVECTOR,   VT, Expand);
       setOperationAction(ISD::EXTRACT_SUBVECTOR,  VT, Expand);
-#if 0
-      // FIXME: temporary disabling LowerSHUFFLE_VECTOR added by
-      // https://github.com/SXAuroraTSUBASAResearch/llvm/pull/2 since
-      // this doesn't work with test-suite/SingleSource/UnitTests/Vector/build.c.
       setOperationAction(ISD::VECTOR_SHUFFLE,     VT, Custom);
-#else
-      setOperationAction(ISD::VECTOR_SHUFFLE,     VT, Expand);
-#endif
 
       // currently unsupported math functions
       setOperationAction(ISD::FABS,  VT, Expand);
@@ -2077,8 +2076,8 @@ void VETargetLowering::computeKnownBitsForTargetNode
   case VEISD::SELECT_ICC:
   case VEISD::SELECT_XCC:
   case VEISD::SELECT_FCC:
-    DAG.computeKnownBits(Op.getOperand(1), Known, Depth+1);
-    DAG.computeKnownBits(Op.getOperand(0), Known2, Depth+1);
+    Known = DAG.computeKnownBits(Op.getOperand(1), Depth + 1);
+    Known2 = DAG.computeKnownBits(Op.getOperand(0), Depth + 1);
 
     // Only known if known in both the LHS and RHS.
     Known.One &= Known2.One;
@@ -3337,8 +3336,12 @@ SDValue VETargetLowering::LowerINTRINSIC_VOID(SDValue Op,
 // Should we expand the build vector with shuffles?
 bool VETargetLowering::shouldExpandBuildVectorWithShuffles(
   EVT VT, unsigned DefinedValues) const {
-  // Not use VECTOR_SHUFFLE to expand BUILD_VECTOR since it cause
-  // an expansion loop.
+  // FIXME: Change this to true or expression once we implement custom
+  // expansion of VECTOR_SHUFFLE completely.
+
+  // Not use VECTOR_SHUFFLE to expand BUILD_VECTOR atm.  Because, it causes
+  // infinity expand loop between both instructions since VECTOR_SHUFFLE
+  // is not implemented completely yet.
   return false;
 }
 
@@ -3376,7 +3379,7 @@ SDValue VETargetLowering::LowerINSERT_VECTOR_ELT(SDValue Op,
   return SDValue();
 }
 
-SDValue VETargetLowering::LowerSHUFFLE_VECTOR(SDValue Op, SelectionDAG &DAG) const {
+SDValue VETargetLowering::LowerVECTOR_SHUFFLE(SDValue Op, SelectionDAG &DAG) const {
   LLVM_DEBUG(dbgs() << "Lowering Shuffle\n");
   SDLoc dl(Op);
   ShuffleVectorSDNode *ShuffleInstr = cast<ShuffleVectorSDNode>(Op.getNode());
@@ -3401,6 +3404,7 @@ SDValue VETargetLowering::LowerSHUFFLE_VECTOR(SDValue Op, SelectionDAG &DAG) con
     }
   }
 
+  // Supports v256 shuffles only atm.
   if (firstVecLength != 256 || secondVecLength != 256 || resultSize != 256) {
     LLVM_DEBUG(dbgs() << "Invalid vector lengths\n");
     return SDValue();
@@ -3575,7 +3579,7 @@ LowerOperation(SDValue Op, SelectionDAG &DAG) const {
 
   case ISD::BITCAST:            return LowerBitcast(Op, DAG);
 
-  case ISD::VECTOR_SHUFFLE:     return LowerSHUFFLE_VECTOR(Op, DAG);
+  case ISD::VECTOR_SHUFFLE:     return LowerVECTOR_SHUFFLE(Op, DAG);
 
   case ISD::MSCATTER:
   case ISD::MGATHER:            return LowerMGATHER_MSCATTER(Op, DAG);

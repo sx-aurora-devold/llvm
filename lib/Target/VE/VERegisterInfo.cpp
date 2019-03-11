@@ -32,7 +32,14 @@ using namespace llvm;
 #include "VEGenRegisterInfo.inc"
 
 // VE uses %s10 == %lp to keep return address
-VERegisterInfo::VERegisterInfo() : VEGenRegisterInfo(VE::SX10) {}
+VERegisterInfo::VERegisterInfo() : VEGenRegisterInfo(VE::SX10) {
+
+  // Initialize VLSPSetID
+  const int* PSet = getRegClassPressureSets(&VE::VLSRegClass);
+  assert(*PSet != -1);
+  VLSPSetID = *PSet++;
+  assert(*PSet == -1);
+}
 
 bool VERegisterInfo::requiresRegisterScavenging(
     const MachineFunction &MF) const {
@@ -217,6 +224,7 @@ static void replaceFI(MachineFunction &MF, MachineBasicBlock::iterator II,
     int regi = MI.getOpcode() == VE::LDVRri ? 0 : 2;
     const TargetInstrInfo &TII = *MF.getSubtarget().getInstrInfo();
     unsigned Reg = MI.getOperand(regi).getReg();
+    bool isDef = MI.getOperand(regi).isDef();
     bool isKill = MI.getOperand(regi).isKill();
 
     // Prepare for VL
@@ -243,7 +251,7 @@ static void replaceFI(MachineFunction &MF, MachineBasicBlock::iterator II,
       .addReg(FramePtr).addImm(Offset);
 
     MI.setDesc(TII.get(opc));
-    MI.getOperand(0).ChangeToRegister(Reg, false, false, isKill);
+    MI.getOperand(0).ChangeToRegister(Reg, isDef, false, isKill);
     MI.getOperand(1).ChangeToImmediate(8);
     MI.getOperand(2).ChangeToRegister(Tmp1, false, false, true);
     MI.getOperand(3).ChangeToRegister(VLReg, false, false, true);
@@ -467,6 +475,19 @@ VERegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   }
 
   replaceFI(MF, II, MI, dl, FIOperandNum, Offset, FrameReg);
+}
+
+unsigned VERegisterInfo::getRegPressureSetLimit(const MachineFunction &MF,
+                                                unsigned Idx) const {
+  // VE has only one single physical VL register, but considering VL
+  // register presssure in MI scheduling cause many vector registers
+  // spills/restores and decrease performance of generated codes.
+  // Therefore, we pretend having 128 VL registers.  This way, llvm
+  // forgets about VL register in MI scheduling.
+  if (Idx == VLSPSetID)
+    return 128;
+
+  return VEGenRegisterInfo::getRegPressureSetLimit(MF, Idx);
 }
 
 unsigned VERegisterInfo::getFrameRegister(const MachineFunction &MF) const {
