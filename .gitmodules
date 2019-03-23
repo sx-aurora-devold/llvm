@@ -4,7 +4,9 @@
 	branch = necllvm
 [submodule "tools/clang"]
 	path = tools/clang
-	url = https://github.com/SXAuroraTSUBASAResearch/clang.git
+	url = https://github.com/sx-aurora-dev/clang.git
+	branch = develop2
 [submodule "projects/compiler-rt"]
 	path = projects/compiler-rt
-	url = https://github.com/SXAuroraTSUBASAResearch/compiler-rt.git
+	url = https://github.com/sx-aurora-dev/compiler-rt.git
+	branch = develop2
